@@ -1,1 +1,88 @@
-# Hanks_Paints
+# Hanks Paints MVP
+
+Database-backed starter application for Hanks Paints.
+
+## Included
+
+- Public-facing Hanks Paints website with dark/blue shop-inspired theme
+- Quote intake form
+- Required customer info, address, vehicle info, service type, payment type, description
+- Database-backed FastAPI backend
+- SQLite default for quick local development
+- PostgreSQL-ready Docker Compose setup
+- Quote verification placeholder
+- Employee dashboard
+- Global search endpoint
+- Start Quotation workflow
+- Appointment request/confirmation endpoints
+- Physical inspection gate before final estimate
+- Line-item estimate endpoints
+- Final estimate approval/signature creates active job
+- Supplement/change order approval flow
+- Portal messaging endpoint
+- Media upload endpoint with customer-visible/internal-only flag
+- Invoice and manual payment tracking endpoints
+- Activity timeline
+
+## Quick local backend run without Docker
+
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+Open:
+
+```text
+http://localhost:8000/docs
+```
+
+## Quick frontend run
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open:
+
+```text
+http://localhost:3000
+```
+
+## Docker run with PostgreSQL
+
+```bash
+docker compose up --build
+```
+
+Frontend:
+
+```text
+http://localhost:3000
+```
+
+Backend API docs:
+
+```text
+http://localhost:8000/docs
+```
+
+## Important next build items
+
+This is a functional starter, not a finished production system. Next development steps:
+
+1. Add real customer passwordless login/session handling.
+2. Add real SMS/email provider integration, such as Twilio/SendGrid.
+3. Add production authentication for employees/admins.
+4. Add appointment availability settings UI.
+5. Add file upload UI to the quote form.
+6. Add object storage for media instead of local file storage.
+7. Add signed PDF generation for estimates, supplements, and invoices.
+8. Add admin settings pages.
+9. Add validation, rate limiting, CAPTCHA, backups, and audit hardening.
+10. Have estimate/authorization/disclaimer wording reviewed by a local attorney/business advisor.

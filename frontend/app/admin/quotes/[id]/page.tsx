@@ -1,0 +1,4 @@
+'use client'
+import {useEffect,useState} from 'react'
+const API=process.env.NEXT_PUBLIC_API_URL||'http://localhost:8000/api'
+export default function QuoteDetail({params}:{params:{id:string}}){const [timeline,setTimeline]=useState<any[]>([]);function load(){fetch(`${API}/quotes/${params.id}/timeline`).then(r=>r.json()).then(setTimeline)}useEffect(load,[]);return <main className="section"><h1>Quote #{params.id}</h1><div className="btns"><button className="btn" onClick={()=>fetch(`${API}/quotes/${params.id}/start-quotation`,{method:'POST'}).then(load)}>Start Quotation</button><button className="btn secondary" onClick={()=>fetch(`${API}/quotes/${params.id}/inspection-complete`,{method:'POST'}).then(load)}>Mark Inspection Complete</button></div><div className="card"><h2>Timeline</h2>{timeline.map((t,i)=><p key={i}><b>{t.event}</b> — {t.actor}<br/><span className="muted">{new Date(t.created_at).toLocaleString()} {t.detail||''}</span></p>)}</div></main>}

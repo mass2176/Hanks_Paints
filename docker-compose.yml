@@ -1,0 +1,24 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: hanks
+      POSTGRES_PASSWORD: hanks
+      POSTGRES_DB: hanks_paints
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg2://hanks:hanks@db:5432/hanks_paints
+    ports: ["8000:8000"]
+    depends_on: [db]
+    volumes: ["./backend/media:/app/media"]
+  frontend:
+    build: ./frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api
+    ports: ["3000:3000"]
+    depends_on: [backend]
+volumes:
+  pgdata:
