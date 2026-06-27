@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
+const API = process.env.NEXT_PUBLIC_API_URL || 'https://hanks-paints-backend.onrender.com/api'
 
 export default function Estimate() {
   const [result, setResult] = useState<any>(null)
