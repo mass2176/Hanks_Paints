@@ -16,6 +16,169 @@ from app.services.notifications import send_customer_notification
 
 router = APIRouter()
 
+def quote_snapshot(db: Session, quote_id: int, *, public: bool = False):
+    quote = db.get(QuoteRequest, quote_id)
+    if not quote:
+        raise HTTPException(404, "Quote not found")
+
+    customer = db.get(Customer, quote.customer_id)
+    vehicle = db.get(Vehicle, quote.vehicle_id)
+    media_query = db.query(MediaFile).filter(MediaFile.quote_id == quote_id)
+    if public:
+        media_query = media_query.filter(MediaFile.visibility == Visibility.customer_visible)
+    media = media_query.order_by(MediaFile.created_at.desc()).all()
+    appointments = db.query(Appointment).filter(Appointment.quote_id == quote_id).order_by(Appointment.requested_start.desc()).all()
+    estimates = db.query(Estimate).filter(Estimate.quote_id == quote_id).order_by(Estimate.created_at.desc()).all()
+    jobs = db.query(Job).filter(Job.quote_id == quote_id).order_by(Job.created_at.desc()).all()
+    messages = db.query(Message).filter(Message.quote_id == quote_id).order_by(Message.created_at.asc()).all()
+    activities = db.query(Activity).filter(Activity.quote_id == quote_id).order_by(Activity.created_at.asc()).all()
+
+    estimate_rows = []
+    for estimate in estimates:
+        items_query = db.query(EstimateLineItem).filter(EstimateLineItem.estimate_id == estimate.id)
+        if public:
+            items_query = items_query.filter(EstimateLineItem.customer_visible == True)  # noqa: E712
+        items = items_query.all()
+        estimate_rows.append({
+            "id": estimate.id,
+            "estimate_type": estimate.estimate_type,
+            "version": estimate.version,
+            "status": estimate.status,
+            "customer_notes": estimate.customer_notes,
+            "internal_notes": None if public else estimate.internal_notes,
+            "created_at": estimate.created_at,
+            "total": sum(item.amount for item in items),
+            "line_items": [
+                {
+                    "id": item.id,
+                    "description": item.description,
+                    "category": item.category,
+                    "amount": item.amount,
+                    "customer_visible": item.customer_visible,
+                }
+                for item in items
+            ],
+        })
+
+    job_rows = []
+    for job in jobs:
+        supplements = db.query(Supplement).filter(Supplement.job_id == job.id).all()
+        invoices = db.query(Invoice).filter(Invoice.job_id == job.id).all()
+        job_rows.append({
+            "id": job.id,
+            "status": job.status.value,
+            "created_at": job.created_at,
+            "supplements": [
+                {
+                    "id": supplement.id,
+                    "reason": supplement.reason,
+                    "amount": supplement.amount,
+                    "status": supplement.status,
+                    "requires_approval": supplement.requires_approval,
+                }
+                for supplement in supplements
+            ],
+            "invoices": [
+                {
+                    "id": invoice.id,
+                    "status": invoice.status,
+                    "total_due": invoice.total_due,
+                    "amount_paid": invoice.amount_paid,
+                    "balance_due": max(invoice.total_due - invoice.amount_paid, 0),
+                    "payments": [
+                        {
+                            "id": payment.id,
+                            "amount": payment.amount,
+                            "method": payment.method,
+                            "note": payment.note,
+                            "created_at": payment.created_at,
+                        }
+                        for payment in db.query(Payment).filter(Payment.invoice_id == invoice.id).order_by(Payment.created_at.asc()).all()
+                    ],
+                }
+                for invoice in invoices
+            ],
+        })
+
+    return {
+        "quote": {
+            "id": quote.id,
+            "service_type": quote.service_type,
+            "payment_type": quote.payment_type,
+            "insurance_company": quote.insurance_company,
+            "claim_number": quote.claim_number,
+            "damage_description": quote.damage_description,
+            "status": quote.status.value,
+            "physical_inspection_completed": quote.physical_inspection_completed,
+            "created_at": quote.created_at,
+        },
+        "customer": {
+            "id": customer.id,
+            "full_name": customer.full_name,
+            "street_address": customer.street_address if not public else None,
+            "city": customer.city if not public else None,
+            "state": customer.state if not public else None,
+            "zip_code": customer.zip_code if not public else None,
+            "phone": customer.phone,
+            "email": customer.email,
+            "phone_verified": customer.phone_verified,
+            "email_verified": customer.email_verified,
+            "preferred_contact": customer.preferred_contact,
+        },
+        "vehicle": {
+            "id": vehicle.id,
+            "vin": vehicle.vin,
+            "year": vehicle.year,
+            "make": vehicle.make,
+            "model": vehicle.model,
+            "trim": vehicle.trim,
+            "color": vehicle.color,
+            "plate": vehicle.plate,
+        },
+        "media": [
+            {
+                "id": item.id,
+                "original_name": item.original_name,
+                "content_type": item.content_type,
+                "visibility": item.visibility.value,
+                "uploaded_by": item.uploaded_by,
+                "media_url": f"/media/{os.path.basename(item.file_path)}",
+                "created_at": item.created_at,
+            }
+            for item in media
+        ],
+        "appointments": [
+            {
+                "id": item.id,
+                "requested_start": item.requested_start,
+                "confirmed_start": item.confirmed_start,
+                "status": item.status.value,
+                "notes": item.notes,
+            }
+            for item in appointments
+        ],
+        "estimates": estimate_rows,
+        "jobs": job_rows,
+        "messages": [
+            {
+                "id": item.id,
+                "sender_type": item.sender_type,
+                "body": item.body,
+                "created_at": item.created_at,
+            }
+            for item in messages
+        ],
+        "timeline": [
+            {
+                "event": item.event,
+                "actor": item.actor,
+                "detail": item.detail,
+                "created_at": item.created_at,
+            }
+            for item in activities
+        ],
+    }
+
 @router.post("/quotes", response_model=QuoteOut)
 def create_quote(payload: QuoteCreate, db: Session = Depends(get_db)):
     customer = Customer(**payload.customer.model_dump())
@@ -35,6 +198,21 @@ def create_quote(payload: QuoteCreate, db: Session = Depends(get_db)):
     db.add(quote); db.commit(); db.refresh(quote)
     log_activity(db, quote_id=quote.id, event="Quote request submitted", actor="customer")
     return quote
+
+@router.get("/quotes/{quote_id}")
+def get_quote(quote_id: int, db: Session = Depends(get_db)):
+    return quote_snapshot(db, quote_id)
+
+@router.get("/portal/quotes/{quote_id}")
+def get_portal_quote(quote_id: int, contact: str, db: Session = Depends(get_db)):
+    quote = db.get(QuoteRequest, quote_id)
+    if not quote:
+        raise HTTPException(404, "Quote not found")
+    customer = db.get(Customer, quote.customer_id)
+    normalized = contact.strip().lower()
+    if normalized not in {customer.email.lower(), customer.phone.lower()}:
+        raise HTTPException(403, "Contact does not match this quote")
+    return quote_snapshot(db, quote_id, public=True)
 
 @router.post("/quotes/{quote_id}/verify")
 def verify_quote(quote_id: int, method: str = "phone", db: Session = Depends(get_db)):

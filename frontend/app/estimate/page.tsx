@@ -7,12 +7,14 @@ import { apiBaseUrl } from '../../lib/config'
 export default function Estimate() {
   const [result, setResult] = useState<any>(null)
   const [error, setError] = useState<string>('')
+  const [uploadSummary, setUploadSummary] = useState<string>('')
   const [loading, setLoading] = useState(false)
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    setError('')
-    setLoading(true)
+      setError('')
+      setUploadSummary('')
+      setLoading(true)
 
     try {
       const f = new FormData(e.currentTarget)
@@ -63,6 +65,30 @@ export default function Estimate() {
         throw new Error(JSON.stringify(data))
       }
 
+      const files = f.getAll('media').filter((file): file is File => file instanceof File && file.size > 0)
+      let uploaded = 0
+
+      for (const file of files) {
+        const uploadBody = new FormData()
+        uploadBody.append('file', file)
+
+        const uploadRes = await fetch(
+          `${apiBaseUrl}/quotes/${data.id}/media?visibility=customer_visible&uploaded_by=customer`,
+          {
+            method: 'POST',
+            body: uploadBody,
+          }
+        )
+
+        if (!uploadRes.ok) {
+          const uploadText = await uploadRes.text()
+          throw new Error(`Quote created, but media upload failed for ${file.name}: ${uploadText}`)
+        }
+
+        uploaded += 1
+      }
+
+      setUploadSummary(uploaded ? `${uploaded} file${uploaded === 1 ? '' : 's'} uploaded.` : '')
       setResult(data)
     } catch (err: any) {
       setError(`Quote submit failed. API URL: ${apiBaseUrl}. Error: ${err.message}`)
@@ -90,6 +116,10 @@ export default function Estimate() {
         <div className="card">
           <h2>Request Created</h2>
           <p>Quote #{result.id} was created as pending verification.</p>
+          {uploadSummary && <p className="muted">{uploadSummary}</p>}
+          <p className="muted">
+            Save this quote number for status checks and portal access: <b>{result.id}</b>
+          </p>
           <button
             type="button"
             className="btn"
@@ -235,9 +265,14 @@ export default function Estimate() {
           </div>
 
           <p className="muted">
-            MVP note: file upload endpoint is included in the API; this starter page submits the
-            database-backed quote first.
+            Upload damage photos, walkaround videos, insurance documents, or other files that help
+            the shop review the request. A final estimate still requires a physical inspection.
           </p>
+
+          <div className="field">
+            <label>Vehicle Photos / Videos *</label>
+            <input name="media" type="file" accept="image/*,video/*,.pdf" multiple required />
+          </div>
 
           <button type="submit" className="btn" disabled={loading}>
             {loading ? 'Submitting...' : 'Submit Quote Request'}
