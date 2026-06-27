@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'https://hanks-paints-backend.onrender.com/api'
+import { apiBaseUrl } from '../../lib/config'
 
 export default function Estimate() {
   const [result, setResult] = useState<any>(null)
@@ -44,7 +44,7 @@ export default function Estimate() {
         damage_description: String(f.get('damage_description') || ''),
       }
 
-      const res = await fetch(`${API}/quotes`, {
+      const res = await fetch(`${apiBaseUrl}/quotes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -65,7 +65,7 @@ export default function Estimate() {
 
       setResult(data)
     } catch (err: any) {
-      setError(`Quote submit failed. API URL: ${API}. Error: ${err.message}`)
+      setError(`Quote submit failed. API URL: ${apiBaseUrl}. Error: ${err.message}`)
     } finally {
       setLoading(false)
     }
@@ -94,7 +94,7 @@ export default function Estimate() {
             type="button"
             className="btn"
             onClick={async () => {
-              await fetch(`${API}/quotes/${result.id}/verify?method=phone`, { method: 'POST' })
+              await fetch(`${apiBaseUrl}/quotes/${result.id}/verify?method=phone`, { method: 'POST' })
               alert('Verified for MVP demo')
             }}
           >

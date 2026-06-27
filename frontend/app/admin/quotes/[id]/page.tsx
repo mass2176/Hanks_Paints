@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'https://hanks-paints-backend.onrender.com/api'
+import { apiBaseUrl } from '../../../../lib/config'
 
 export default function QuoteDetail() {
   const params = useParams()
@@ -11,7 +11,7 @@ export default function QuoteDetail() {
   const [timeline, setTimeline] = useState<any[]>([])
 
   function load() {
-    fetch(`${API}/quotes/${id}/timeline`)
+    fetch(`${apiBaseUrl}/quotes/${id}/timeline`)
       .then((r) => r.json())
       .then(setTimeline)
   }
@@ -28,7 +28,7 @@ export default function QuoteDetail() {
         <button
           className="btn"
           onClick={() =>
-            fetch(`${API}/quotes/${id}/start-quotation`, { method: 'POST' }).then(load)
+            fetch(`${apiBaseUrl}/quotes/${id}/start-quotation`, { method: 'POST' }).then(load)
           }
         >
           Start Quotation
@@ -37,7 +37,7 @@ export default function QuoteDetail() {
         <button
           className="btn secondary"
           onClick={() =>
-            fetch(`${API}/quotes/${id}/inspection-complete`, { method: 'POST' }).then(load)
+            fetch(`${apiBaseUrl}/quotes/${id}/inspection-complete`, { method: 'POST' }).then(load)
           }
         >
           Mark Inspection Complete
