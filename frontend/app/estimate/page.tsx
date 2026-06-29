@@ -18,6 +18,11 @@ export default function Estimate() {
 
     try {
       const f = new FormData(e.currentTarget)
+      const files = f.getAll('media').filter((file): file is File => file instanceof File && file.size > 0)
+
+      if (!files.length) {
+        throw new Error('Please add at least one vehicle photo, video, or document.')
+      }
 
       const payload = {
         customer: {
@@ -65,7 +70,6 @@ export default function Estimate() {
         throw new Error(JSON.stringify(data))
       }
 
-      const files = f.getAll('media').filter((file): file is File => file instanceof File && file.size > 0)
       let uploaded = 0
 
       for (const file of files) {
@@ -275,7 +279,20 @@ export default function Estimate() {
 
           <div className="field">
             <label>Vehicle Photos / Videos *</label>
-            <input name="media" type="file" accept="image/*,video/*,.pdf" multiple required />
+            <div className="upload-grid">
+              <div className="upload-card">
+                <span>Take Photo Now</span>
+                <input name="media" type="file" accept="image/*" capture="environment" />
+              </div>
+              <div className="upload-card">
+                <span>Choose From Device</span>
+                <input name="media" type="file" accept="image/*,video/*,.pdf" multiple />
+              </div>
+            </div>
+            <p className="muted">
+              On a phone or tablet, you can take a new damage photo or choose existing photos and
+              videos from your camera roll. On a computer, choose files from your device.
+            </p>
           </div>
 
           <button type="submit" className="btn" disabled={loading}>

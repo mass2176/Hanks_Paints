@@ -216,7 +216,16 @@ export default function Page() {
               <h2>Upload More Media</h2>
               <p className="muted">Photos, videos, PDFs, or additional requested files.</p>
               <div className="field">
-                <input type="file" accept="image/*,video/*,.pdf" multiple onChange={(e) => setFiles(e.target.files)} />
+                <div className="upload-grid">
+                  <div className="upload-card">
+                    <span>Take Photo Now</span>
+                    <input type="file" accept="image/*" capture="environment" onChange={(e) => setFiles(e.target.files)} />
+                  </div>
+                  <div className="upload-card">
+                    <span>Choose From Device</span>
+                    <input type="file" accept="image/*,video/*,.pdf" multiple onChange={(e) => setFiles(e.target.files)} />
+                  </div>
+                </div>
               </div>
               <button className="btn" type="submit">
                 Upload Files
