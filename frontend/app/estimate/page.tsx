@@ -114,22 +114,26 @@ export default function Estimate() {
 
       {result ? (
         <div className="card">
-          <h2>Request Created</h2>
-          <p>Quote #{result.id} was created as pending verification.</p>
+          <h2>Request Received</h2>
+          <p>
+            Quote #{result.id} has been received by Hanks Paints.
+          </p>
           {uploadSummary && <p className="muted">{uploadSummary}</p>}
           <p className="muted">
             Save this quote number for status checks and portal access: <b>{result.id}</b>
           </p>
-          <button
-            type="button"
-            className="btn"
-            onClick={async () => {
-              await fetch(`${apiBaseUrl}/quotes/${result.id}/verify?method=phone`, { method: 'POST' })
-              alert('Verified for MVP demo')
-            }}
-          >
-            Demo Verify by Text
-          </button>
+          <p className="muted">
+            Use your quote number with the phone or email from this request to check status, upload
+            more files, request inspection time, and message the shop.
+          </p>
+          <div className="btns">
+            <a className="btn" href={`/portal?quote=${result.id}`}>
+              Open Customer Portal
+            </a>
+            <a className="btn secondary" href="/status">
+              Check Status Later
+            </a>
+          </div>
         </div>
       ) : (
         <form className="form" onSubmit={submit}>

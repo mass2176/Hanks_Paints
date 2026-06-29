@@ -193,10 +193,11 @@ def create_quote(payload: QuoteCreate, db: Session = Depends(get_db)):
         insurance_company=payload.insurance_company,
         claim_number=payload.claim_number,
         damage_description=payload.damage_description,
-        status=QuoteStatus.unverified,
+        status=QuoteStatus.received,
     )
     db.add(quote); db.commit(); db.refresh(quote)
     log_activity(db, quote_id=quote.id, event="Quote request submitted", actor="customer")
+    log_activity(db, quote_id=quote.id, event="Request received", actor="system")
     return quote
 
 @router.get("/quotes/{quote_id}")
