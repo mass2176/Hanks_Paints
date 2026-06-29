@@ -47,6 +47,25 @@ export default function QuoteDetail() {
     }
   }
 
+  async function deleteQuote() {
+    const confirmed = window.confirm(
+      `Delete quote #${id}? This permanently removes the quote, related messages, appointments, estimates, jobs, invoices, payments, timeline entries, and uploaded media.`
+    )
+
+    if (!confirmed) return
+
+    setError('')
+    setNotice('')
+
+    try {
+      const res = await fetch(`${apiBaseUrl}/quotes/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(await res.text())
+      window.location.href = '/admin'
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
   useEffect(() => {
     if (id) {
       load().catch((err) => setError(err.message))
@@ -101,6 +120,9 @@ export default function QuoteDetail() {
                   }
                 >
                   Mark Inspection Complete
+                </button>
+                <button className="btn danger" type="button" onClick={deleteQuote}>
+                  Delete Quote
                 </button>
               </div>
             </div>

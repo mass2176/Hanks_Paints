@@ -204,6 +204,82 @@ def create_quote(payload: QuoteCreate, db: Session = Depends(get_db)):
 def get_quote(quote_id: int, db: Session = Depends(get_db)):
     return quote_snapshot(db, quote_id)
 
+@router.delete("/quotes/{quote_id}")
+def delete_quote(quote_id: int, db: Session = Depends(get_db)):
+    quote = db.get(QuoteRequest, quote_id)
+    if not quote:
+        raise HTTPException(404, "Quote not found")
+
+    customer_id = quote.customer_id
+    vehicle_id = quote.vehicle_id
+    media_root = os.path.abspath(settings.media_root)
+    deleted_files = 0
+
+    def delete_media_file(media: MediaFile):
+        nonlocal deleted_files
+        path = os.path.abspath(media.file_path)
+        if path.startswith(media_root) and os.path.exists(path):
+            try:
+                os.remove(path)
+                deleted_files += 1
+            except OSError:
+                pass
+        db.delete(media)
+
+    jobs = db.query(Job).filter(Job.quote_id == quote_id).all()
+    for job in jobs:
+        invoices = db.query(Invoice).filter(Invoice.job_id == job.id).all()
+        for invoice in invoices:
+            for payment in db.query(Payment).filter(Payment.invoice_id == invoice.id).all():
+                db.delete(payment)
+            db.delete(invoice)
+
+        for supplement in db.query(Supplement).filter(Supplement.job_id == job.id).all():
+            db.delete(supplement)
+
+        for media in db.query(MediaFile).filter(MediaFile.job_id == job.id).all():
+            delete_media_file(media)
+
+        for activity in db.query(Activity).filter(Activity.job_id == job.id).all():
+            db.delete(activity)
+
+        db.delete(job)
+
+    estimates = db.query(Estimate).filter(Estimate.quote_id == quote_id).all()
+    for estimate in estimates:
+        for item in db.query(EstimateLineItem).filter(EstimateLineItem.estimate_id == estimate.id).all():
+            db.delete(item)
+        db.delete(estimate)
+
+    for appointment in db.query(Appointment).filter(Appointment.quote_id == quote_id).all():
+        db.delete(appointment)
+
+    for message in db.query(Message).filter(Message.quote_id == quote_id).all():
+        db.delete(message)
+
+    for media in db.query(MediaFile).filter(MediaFile.quote_id == quote_id).all():
+        delete_media_file(media)
+
+    for activity in db.query(Activity).filter(Activity.quote_id == quote_id).all():
+        db.delete(activity)
+
+    db.delete(quote)
+    db.flush()
+
+    if db.query(QuoteRequest).filter(QuoteRequest.vehicle_id == vehicle_id).count() == 0:
+        vehicle = db.get(Vehicle, vehicle_id)
+        if vehicle:
+            db.delete(vehicle)
+            db.flush()
+
+    if db.query(Vehicle).filter(Vehicle.customer_id == customer_id).count() == 0:
+        customer = db.get(Customer, customer_id)
+        if customer:
+            db.delete(customer)
+
+    db.commit()
+    return {"ok": True, "quote_id": quote_id, "deleted_files": deleted_files}
+
 @router.get("/portal/quotes/{quote_id}")
 def get_portal_quote(quote_id: int, contact: str, db: Session = Depends(get_db)):
     quote = db.get(QuoteRequest, quote_id)
