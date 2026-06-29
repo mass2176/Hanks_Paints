@@ -2,12 +2,14 @@
 
 import { useState } from 'react'
 
+import MediaPicker, { validateMediaFiles } from '../../components/MediaPicker'
 import { apiBaseUrl } from '../../lib/config'
 
 export default function Estimate() {
   const [result, setResult] = useState<any>(null)
   const [error, setError] = useState<string>('')
   const [uploadSummary, setUploadSummary] = useState<string>('')
+  const [mediaFiles, setMediaFiles] = useState<File[]>([])
   const [loading, setLoading] = useState(false)
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
@@ -18,10 +20,15 @@ export default function Estimate() {
 
     try {
       const f = new FormData(e.currentTarget)
-      const files = f.getAll('media').filter((file): file is File => file instanceof File && file.size > 0)
+      const files = mediaFiles.filter((file) => file.size > 0)
 
       if (!files.length) {
-        throw new Error('Please add at least one vehicle photo, video, or document.')
+        throw new Error('Please add at least one vehicle photo.')
+      }
+
+      const mediaError = validateMediaFiles(files)
+      if (mediaError) {
+        throw new Error(mediaError)
       }
 
       const payload = {
@@ -273,22 +280,13 @@ export default function Estimate() {
           </div>
 
           <p className="muted">
-            Upload damage photos, walkaround videos, insurance documents, or other files that help
+            Upload damage photos and one short walkaround video that help
             the shop review the request. A final estimate still requires a physical inspection.
           </p>
 
           <div className="field">
             <label>Vehicle Photos / Videos *</label>
-            <div className="upload-grid">
-              <div className="upload-card">
-                <span>Take Photo Now</span>
-                <input name="media" type="file" accept="image/*" capture="environment" />
-              </div>
-              <div className="upload-card">
-                <span>Choose From Device</span>
-                <input name="media" type="file" accept="image/*,video/*,.pdf" multiple />
-              </div>
-            </div>
+            <MediaPicker files={mediaFiles} onChange={setMediaFiles} required />
             <p className="muted">
               On a phone or tablet, you can take a new damage photo or choose existing photos and
               videos from your camera roll. On a computer, choose files from your device.

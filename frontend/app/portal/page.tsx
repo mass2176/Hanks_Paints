@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import MediaPicker, { validateMediaFiles } from '../../components/MediaPicker'
 import { apiBaseUrl } from '../../lib/config'
 
 function money(value: number) {
@@ -13,7 +14,7 @@ export default function Page() {
   const [data, setData] = useState<any>(null)
   const [message, setMessage] = useState('')
   const [appointment, setAppointment] = useState('')
-  const [files, setFiles] = useState<FileList | null>(null)
+  const [files, setFiles] = useState<File[]>([])
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -98,9 +99,12 @@ export default function Page() {
   async function uploadMedia(e: React.FormEvent) {
     e.preventDefault()
     await run(async () => {
-      if (!files?.length) return
+      if (!files.length) return
 
-      for (const file of Array.from(files)) {
+      const mediaError = validateMediaFiles(files)
+      if (mediaError) throw new Error(mediaError)
+
+      for (const file of files) {
         const body = new FormData()
         body.append('file', file)
         const res = await fetch(
@@ -110,7 +114,7 @@ export default function Page() {
         if (!res.ok) throw new Error(await res.text())
       }
 
-      setFiles(null)
+      setFiles([])
     }, 'Media uploaded.')
   }
 
@@ -214,20 +218,11 @@ export default function Page() {
           <div className="grid" style={{ marginTop: 18 }}>
             <form className="card" onSubmit={uploadMedia}>
               <h2>Upload More Media</h2>
-              <p className="muted">Photos, videos, PDFs, or additional requested files.</p>
+              <p className="muted">Photos or one short video requested by the shop.</p>
               <div className="field">
-                <div className="upload-grid">
-                  <div className="upload-card">
-                    <span>Take Photo Now</span>
-                    <input type="file" accept="image/*" capture="environment" onChange={(e) => setFiles(e.target.files)} />
-                  </div>
-                  <div className="upload-card">
-                    <span>Choose From Device</span>
-                    <input type="file" accept="image/*,video/*,.pdf" multiple onChange={(e) => setFiles(e.target.files)} />
-                  </div>
-                </div>
+                <MediaPicker files={files} onChange={setFiles} />
               </div>
-              <button className="btn" type="submit">
+              <button className="btn" type="submit" disabled={!files.length}>
                 Upload Files
               </button>
             </form>
