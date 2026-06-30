@@ -8,6 +8,10 @@ function money(value: number) {
   return `$${Number(value || 0).toFixed(2)}`
 }
 
+function emptyLineItem() {
+  return { description: '', amount: '' }
+}
+
 export default function QuoteDetail() {
   const params = useParams()
   const id = params.id as string
@@ -15,8 +19,8 @@ export default function QuoteDetail() {
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [estimateType, setEstimateType] = useState('preliminary')
-  const [estimateDescription, setEstimateDescription] = useState('')
-  const [estimateAmount, setEstimateAmount] = useState('')
+  const [editingEstimateId, setEditingEstimateId] = useState<number | null>(null)
+  const [estimateLineItems, setEstimateLineItems] = useState([emptyLineItem()])
   const [customerNotes, setCustomerNotes] = useState('')
   const [internalNotes, setInternalNotes] = useState('')
   const [shopMessage, setShopMessage] = useState('')
@@ -74,6 +78,43 @@ export default function QuoteDetail() {
 
   const latestJob = data?.jobs?.[0]
   const latestInvoice = latestJob?.invoices?.[0]
+
+  function updateEstimateLineItem(index: number, field: 'description' | 'amount', value: string) {
+    setEstimateLineItems((items) => items.map((item, itemIndex) => (
+      itemIndex === index ? { ...item, [field]: value } : item
+    )))
+  }
+
+  function addEstimateLineItem() {
+    setEstimateLineItems((items) => [...items, emptyLineItem()])
+  }
+
+  function removeEstimateLineItem(index: number) {
+    setEstimateLineItems((items) => items.length === 1 ? items : items.filter((_, itemIndex) => itemIndex !== index))
+  }
+
+  function resetEstimateForm() {
+    setEditingEstimateId(null)
+    setEstimateType('preliminary')
+    setEstimateLineItems([emptyLineItem()])
+    setCustomerNotes('')
+    setInternalNotes('')
+  }
+
+  function editEstimate(estimate: any) {
+    setEditingEstimateId(estimate.id)
+    setEstimateType(estimate.estimate_type)
+    setCustomerNotes(estimate.customer_notes || '')
+    setInternalNotes(estimate.internal_notes || '')
+    setEstimateLineItems(
+      estimate.line_items.length
+        ? estimate.line_items.map((item: any) => ({
+            description: item.description || '',
+            amount: String(item.amount ?? ''),
+          }))
+        : [emptyLineItem()]
+    )
+  }
 
   return (
     <main className="section">
@@ -134,32 +175,32 @@ export default function QuoteDetail() {
               onSubmit={(e) => {
                 e.preventDefault()
                 run(async () => {
-                  const res = await fetch(`${apiBaseUrl}/quotes/${id}/estimates`, {
-                    method: 'POST',
+                  const endpoint = editingEstimateId
+                    ? `${apiBaseUrl}/estimates/${editingEstimateId}`
+                    : `${apiBaseUrl}/quotes/${id}/estimates`
+                  const res = await fetch(endpoint, {
+                    method: editingEstimateId ? 'PUT' : 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                       estimate_type: estimateType,
                       customer_notes: customerNotes,
                       internal_notes: internalNotes,
-                      line_items: [
+                      line_items: estimateLineItems.map((item) => (
                         {
-                          description: estimateDescription,
+                          description: item.description,
                           category: 'Labor/Repair',
-                          amount: Number(estimateAmount),
+                          amount: Number(item.amount),
                           customer_visible: true,
-                        },
-                      ],
+                        }
+                      )),
                     }),
                   })
                   if (!res.ok) throw new Error(await res.text())
-                  setEstimateDescription('')
-                  setEstimateAmount('')
-                  setCustomerNotes('')
-                  setInternalNotes('')
-                }, `${estimateType} estimate created.`)
+                  resetEstimateForm()
+                }, editingEstimateId ? `${estimateType} estimate updated.` : `${estimateType} estimate created.`)
               }}
             >
-              <h2>Create Estimate</h2>
+              <h2>{editingEstimateId ? `Edit Estimate #${editingEstimateId}` : 'Create Estimate'}</h2>
               <div className="field">
                 <label>Estimate Type</label>
                 <select value={estimateType} onChange={(e) => setEstimateType(e.target.value)}>
@@ -167,14 +208,26 @@ export default function QuoteDetail() {
                   <option value="final">Final Estimate After Physical Inspection</option>
                 </select>
               </div>
-              <div className="field">
-                <label>Line Item</label>
-                <input value={estimateDescription} onChange={(e) => setEstimateDescription(e.target.value)} required />
-              </div>
-              <div className="field">
-                <label>Amount</label>
-                <input type="number" min="0" step="0.01" value={estimateAmount} onChange={(e) => setEstimateAmount(e.target.value)} required />
-              </div>
+              {estimateLineItems.map((item, index) => (
+                <div key={index}>
+                  <div className="field">
+                    <label>Line Item</label>
+                    <input value={item.description} onChange={(e) => updateEstimateLineItem(index, 'description', e.target.value)} required />
+                  </div>
+                  <div className="field">
+                    <label>Amount</label>
+                    <input type="number" min="0" step="0.01" value={item.amount} onChange={(e) => updateEstimateLineItem(index, 'amount', e.target.value)} required />
+                  </div>
+                  <div className="btns" style={{ marginTop: 0 }}>
+                    <button className="btn secondary" type="button" onClick={addEstimateLineItem}>
+                      +
+                    </button>
+                    <button className="btn danger" type="button" onClick={() => removeEstimateLineItem(index)} disabled={estimateLineItems.length === 1}>
+                      -
+                    </button>
+                  </div>
+                </div>
+              ))}
               <div className="field">
                 <label>Customer Notes</label>
                 <textarea rows={3} value={customerNotes} onChange={(e) => setCustomerNotes(e.target.value)} />
@@ -279,6 +332,9 @@ export default function QuoteDetail() {
                   <p>
                     <b>#{estimate.id} {estimate.estimate_type}</b> - {estimate.status} - {money(estimate.total)}
                   </p>
+                  <button className="btn secondary" type="button" onClick={() => editEstimate(estimate)}>
+                    Edit
+                  </button>
                   {estimate.line_items.map((item: any) => (
                     <p className="muted" key={item.id}>
                       {item.description}: {money(item.amount)}

@@ -377,6 +377,33 @@ def create_estimate(quote_id: int, payload: EstimateCreate, db: Session = Depend
     log_activity(db, quote_id=quote_id, event=f"{payload.estimate_type.title()} estimate created", actor="employee")
     return {"id": est.id, "status": quote.status.value}
 
+@router.put("/estimates/{estimate_id}")
+def update_estimate(estimate_id: int, payload: EstimateCreate, db: Session = Depends(get_db)):
+    est = db.get(Estimate, estimate_id)
+    if not est:
+        raise HTTPException(404, "Estimate not found")
+
+    quote = db.get(QuoteRequest, est.quote_id)
+    if payload.estimate_type == "final" and not quote.physical_inspection_completed:
+        raise HTTPException(400, "Final estimate requires physical inspection completed")
+
+    est.estimate_type = payload.estimate_type
+    est.customer_notes = payload.customer_notes
+    est.internal_notes = payload.internal_notes
+    est.version = (est.version or 1) + 1
+
+    for item in db.query(EstimateLineItem).filter(EstimateLineItem.estimate_id == est.id).all():
+        db.delete(item)
+    db.flush()
+
+    for item in payload.line_items:
+        db.add(EstimateLineItem(estimate_id=est.id, **item.model_dump()))
+
+    quote.status = QuoteStatus.final_ready if payload.estimate_type == "final" else QuoteStatus.preliminary_ready
+    db.commit()
+    log_activity(db, quote_id=quote.id, event=f"{payload.estimate_type.title()} estimate updated", actor="employee")
+    return {"id": est.id, "status": quote.status.value}
+
 @router.post("/estimates/{estimate_id}/approve")
 def approve_estimate(estimate_id: int, typed_signature: str, db: Session = Depends(get_db)):
     est = db.get(Estimate, estimate_id)
