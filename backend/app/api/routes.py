@@ -215,7 +215,7 @@ def delete_quote(quote_id: int, db: Session = Depends(get_db)):
     media_root = os.path.abspath(settings.media_root)
     deleted_files = 0
 
-    def delete_media_file(media: MediaFile):
+    def remove_media_file(media: MediaFile):
         nonlocal deleted_files
         path = os.path.abspath(media.file_path)
         if path.startswith(media_root) and os.path.exists(path):
@@ -224,44 +224,37 @@ def delete_quote(quote_id: int, db: Session = Depends(get_db)):
                 deleted_files += 1
             except OSError:
                 pass
-        db.delete(media)
 
-    jobs = db.query(Job).filter(Job.quote_id == quote_id).all()
-    for job in jobs:
-        invoices = db.query(Invoice).filter(Invoice.job_id == job.id).all()
-        for invoice in invoices:
-            for payment in db.query(Payment).filter(Payment.invoice_id == invoice.id).all():
-                db.delete(payment)
-            db.delete(invoice)
+    job_ids = [job_id for (job_id,) in db.query(Job.id).filter(Job.quote_id == quote_id).all()]
+    estimate_ids = [estimate_id for (estimate_id,) in db.query(Estimate.id).filter(Estimate.quote_id == quote_id).all()]
+    invoice_ids = []
+    if job_ids:
+        invoice_ids = [invoice_id for (invoice_id,) in db.query(Invoice.id).filter(Invoice.job_id.in_(job_ids)).all()]
 
-        for supplement in db.query(Supplement).filter(Supplement.job_id == job.id).all():
-            db.delete(supplement)
+    media_query = db.query(MediaFile).filter(MediaFile.quote_id == quote_id)
+    if job_ids:
+        media_query = db.query(MediaFile).filter(or_(MediaFile.quote_id == quote_id, MediaFile.job_id.in_(job_ids)))
+    for media in media_query.all():
+        remove_media_file(media)
 
-        for media in db.query(MediaFile).filter(MediaFile.job_id == job.id).all():
-            delete_media_file(media)
+    if invoice_ids:
+        db.query(Payment).filter(Payment.invoice_id.in_(invoice_ids)).delete(synchronize_session=False)
+    if job_ids:
+        db.query(Invoice).filter(Invoice.job_id.in_(job_ids)).delete(synchronize_session=False)
+        db.query(Supplement).filter(Supplement.job_id.in_(job_ids)).delete(synchronize_session=False)
+        db.query(MediaFile).filter(or_(MediaFile.quote_id == quote_id, MediaFile.job_id.in_(job_ids))).delete(synchronize_session=False)
+        db.query(Activity).filter(or_(Activity.quote_id == quote_id, Activity.job_id.in_(job_ids))).delete(synchronize_session=False)
+        db.query(Job).filter(Job.id.in_(job_ids)).delete(synchronize_session=False)
+    else:
+        db.query(MediaFile).filter(MediaFile.quote_id == quote_id).delete(synchronize_session=False)
+        db.query(Activity).filter(Activity.quote_id == quote_id).delete(synchronize_session=False)
 
-        for activity in db.query(Activity).filter(Activity.job_id == job.id).all():
-            db.delete(activity)
+    if estimate_ids:
+        db.query(EstimateLineItem).filter(EstimateLineItem.estimate_id.in_(estimate_ids)).delete(synchronize_session=False)
+        db.query(Estimate).filter(Estimate.id.in_(estimate_ids)).delete(synchronize_session=False)
 
-        db.delete(job)
-
-    estimates = db.query(Estimate).filter(Estimate.quote_id == quote_id).all()
-    for estimate in estimates:
-        for item in db.query(EstimateLineItem).filter(EstimateLineItem.estimate_id == estimate.id).all():
-            db.delete(item)
-        db.delete(estimate)
-
-    for appointment in db.query(Appointment).filter(Appointment.quote_id == quote_id).all():
-        db.delete(appointment)
-
-    for message in db.query(Message).filter(Message.quote_id == quote_id).all():
-        db.delete(message)
-
-    for media in db.query(MediaFile).filter(MediaFile.quote_id == quote_id).all():
-        delete_media_file(media)
-
-    for activity in db.query(Activity).filter(Activity.quote_id == quote_id).all():
-        db.delete(activity)
+    db.query(Appointment).filter(Appointment.quote_id == quote_id).delete(synchronize_session=False)
+    db.query(Message).filter(Message.quote_id == quote_id).delete(synchronize_session=False)
 
     db.delete(quote)
     db.flush()

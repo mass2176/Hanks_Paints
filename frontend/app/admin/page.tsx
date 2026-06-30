@@ -7,6 +7,8 @@ export default function Admin() {
   const [rows, setRows] = useState<any[]>([])
   const [q, setQ] = useState('')
   const [search, setSearch] = useState<any>(null)
+  const [notice, setNotice] = useState('')
+  const [error, setError] = useState('')
 
   useEffect(() => {
     fetch(`${apiBaseUrl}/dashboard`)
@@ -15,9 +17,31 @@ export default function Admin() {
       .catch(() => {})
   }, [])
 
+  async function deleteQuote(id: number) {
+    const confirmed = window.confirm(
+      `Delete quote #${id}? This permanently removes the quote, related messages, appointments, estimates, jobs, invoices, payments, timeline entries, and uploaded media.`
+    )
+
+    if (!confirmed) return
+
+    setNotice('')
+    setError('')
+
+    try {
+      const res = await fetch(`${apiBaseUrl}/quotes/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(await res.text())
+      setRows((current) => current.filter((row) => row.id !== id))
+      setNotice(`Quote #${id} deleted.`)
+    } catch (err: any) {
+      setError(`Quote #${id} delete failed: ${err.message}`)
+    }
+  }
+
   return (
     <main className="section">
       <h1>Shop Dashboard</h1>
+      {error && <p className="muted">Error: {error}</p>}
+      {notice && <p className="muted">{notice}</p>}
       <p className="muted">
         Review incoming requests, search customer and vehicle records, and open a quote to manage
         estimates, appointments, media, messages, supplements, invoices, and payments.
@@ -65,6 +89,9 @@ export default function Admin() {
             <a className="btn secondary" href={`/admin/quotes/${row.id}`}>
               Open
             </a>
+            <button className="btn danger" type="button" onClick={() => deleteQuote(row.id)}>
+              Delete
+            </button>
           </div>
         ))}
       </div>
