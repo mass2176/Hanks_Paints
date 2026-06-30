@@ -1,16 +1,37 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import MediaPicker, { validateMediaFiles } from '../../components/MediaPicker'
 import { apiBaseUrl } from '../../lib/config'
+
+const serviceOptions = [
+  'Rust Repair',
+  'Panel Replacement',
+  'Collision / Body Repair',
+  'Paint Repair',
+  'Custom Paint',
+  'Full Color Change',
+  'Coatings',
+  'Spray PPF',
+  'Other / Not Sure',
+]
 
 export default function Estimate() {
   const [result, setResult] = useState<any>(null)
   const [error, setError] = useState<string>('')
   const [uploadSummary, setUploadSummary] = useState<string>('')
   const [mediaFiles, setMediaFiles] = useState<File[]>([])
+  const [selectedService, setSelectedService] = useState(serviceOptions[0])
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    const requestedService = new URLSearchParams(window.location.search).get('service')
+
+    if (requestedService && serviceOptions.includes(requestedService)) {
+      setSelectedService(requestedService)
+    }
+  }, [])
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -241,16 +262,15 @@ export default function Estimate() {
 
           <div className="field">
             <label>Main Service *</label>
-            <select name="service_type" required>
-              <option>Rust Repair</option>
-              <option>Panel Replacement</option>
-              <option>Collision / Body Repair</option>
-              <option>Paint Repair</option>
-              <option>Custom Paint</option>
-              <option>Full Color Change</option>
-              <option>Coatings</option>
-              <option>Spray PPF</option>
-              <option>Other / Not Sure</option>
+            <select
+              name="service_type"
+              required
+              value={selectedService}
+              onChange={(e) => setSelectedService(e.target.value)}
+            >
+              {serviceOptions.map((option) => (
+                <option key={option}>{option}</option>
+              ))}
             </select>
           </div>
 
