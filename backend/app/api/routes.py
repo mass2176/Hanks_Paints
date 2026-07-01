@@ -359,6 +359,9 @@ def mark_inspection_complete(quote_id: int, db: Session = Depends(get_db)):
 def create_estimate(quote_id: int, payload: EstimateCreate, db: Session = Depends(get_db)):
     quote = db.get(QuoteRequest, quote_id)
     if not quote: raise HTTPException(404, "Quote not found")
+    existing_estimate = db.query(Estimate).filter(Estimate.quote_id == quote_id).first()
+    if existing_estimate:
+        raise HTTPException(409, "This quote already has an estimate. Update the existing estimate instead.")
     if payload.estimate_type == "final" and not quote.physical_inspection_completed:
         raise HTTPException(400, "Final estimate requires physical inspection completed")
     est = Estimate(quote_id=quote_id, estimate_type=payload.estimate_type, customer_notes=payload.customer_notes, internal_notes=payload.internal_notes)

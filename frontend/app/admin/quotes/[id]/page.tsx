@@ -79,6 +79,8 @@ export default function QuoteDetail() {
   const latestJob = data?.jobs?.[0]
   const latestInvoice = latestJob?.invoices?.[0]
   const quotationStarted = data?.quote?.status !== 'Request Received'
+  const existingEstimate = data?.estimates?.[0]
+  const showEstimateForm = !existingEstimate || editingEstimateId !== null
 
   function updateEstimateLineItem(index: number, field: 'description' | 'amount', value: string) {
     setEstimateLineItems((items) => items.map((item, itemIndex) => (
@@ -172,76 +174,99 @@ export default function QuoteDetail() {
           </div>
 
           <div className="grid" style={{ marginTop: 18 }}>
-            <form
-              className="card"
-              onSubmit={(e) => {
-                e.preventDefault()
-                run(async () => {
-                  const endpoint = editingEstimateId
-                    ? `${apiBaseUrl}/estimates/${editingEstimateId}`
-                    : `${apiBaseUrl}/quotes/${id}/estimates`
-                  const res = await fetch(endpoint, {
-                    method: editingEstimateId ? 'PUT' : 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      estimate_type: estimateType,
-                      customer_notes: customerNotes,
-                      internal_notes: internalNotes,
-                      line_items: estimateLineItems.map((item) => (
-                        {
-                          description: item.description,
-                          category: 'Labor/Repair',
-                          amount: Number(item.amount),
-                          customer_visible: true,
-                        }
-                      )),
-                    }),
-                  })
-                  if (!res.ok) throw new Error(await res.text())
-                  resetEstimateForm()
-                }, editingEstimateId ? `${estimateType} estimate updated.` : `${estimateType} estimate created.`)
-              }}
-            >
-              <h2>{editingEstimateId ? `Edit Estimate #${editingEstimateId}` : 'Create Estimate'}</h2>
-              <div className="field">
-                <label>Estimate Type</label>
-                <select value={estimateType} onChange={(e) => setEstimateType(e.target.value)}>
-                  <option value="preliminary">Preliminary Photo Estimate</option>
-                  <option value="final">Final Estimate After Physical Inspection</option>
-                </select>
-              </div>
-              {estimateLineItems.map((item, index) => (
-                <div key={index}>
-                  <div className="field">
-                    <label>Line Item</label>
-                    <input value={item.description} onChange={(e) => updateEstimateLineItem(index, 'description', e.target.value)} required />
-                  </div>
-                  <div className="field">
-                    <label>Amount</label>
-                    <input type="number" min="0" step="0.01" value={item.amount} onChange={(e) => updateEstimateLineItem(index, 'amount', e.target.value)} required />
-                  </div>
-                  <div className="btns" style={{ marginTop: 0 }}>
-                    <button className="btn secondary" type="button" onClick={addEstimateLineItem}>
-                      +
-                    </button>
-                    <button className="btn danger" type="button" onClick={() => removeEstimateLineItem(index)} disabled={estimateLineItems.length === 1}>
-                      -
-                    </button>
-                  </div>
+            {showEstimateForm ? (
+              <form
+                className="card"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  run(async () => {
+                    const endpoint = editingEstimateId
+                      ? `${apiBaseUrl}/estimates/${editingEstimateId}`
+                      : `${apiBaseUrl}/quotes/${id}/estimates`
+                    const res = await fetch(endpoint, {
+                      method: editingEstimateId ? 'PUT' : 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        estimate_type: estimateType,
+                        customer_notes: customerNotes,
+                        internal_notes: internalNotes,
+                        line_items: estimateLineItems.map((item) => (
+                          {
+                            description: item.description,
+                            category: 'Labor/Repair',
+                            amount: Number(item.amount),
+                            customer_visible: true,
+                          }
+                        )),
+                      }),
+                    })
+                    if (!res.ok) throw new Error(await res.text())
+                    resetEstimateForm()
+                  }, editingEstimateId ? `${estimateType} estimate updated.` : `${estimateType} estimate created.`)
+                }}
+              >
+                <h2>{editingEstimateId ? `Edit Estimate #${editingEstimateId}` : 'Create Estimate'}</h2>
+                <div className="field">
+                  <label>Estimate Type</label>
+                  <select value={estimateType} onChange={(e) => setEstimateType(e.target.value)}>
+                    <option value="preliminary">Preliminary Photo Estimate</option>
+                    <option value="final">Final Estimate After Physical Inspection</option>
+                  </select>
                 </div>
-              ))}
-              <div className="field">
-                <label>Customer Notes</label>
-                <textarea rows={3} value={customerNotes} onChange={(e) => setCustomerNotes(e.target.value)} />
+                {estimateLineItems.map((item, index) => (
+                  <div key={index}>
+                    <div className="field">
+                      <label>Line Item</label>
+                      <input value={item.description} onChange={(e) => updateEstimateLineItem(index, 'description', e.target.value)} required />
+                    </div>
+                    <div className="field">
+                      <label>Amount</label>
+                      <input type="number" min="0" step="0.01" value={item.amount} onChange={(e) => updateEstimateLineItem(index, 'amount', e.target.value)} required />
+                    </div>
+                    <div className="btns" style={{ marginTop: 0 }}>
+                      <button className="btn secondary" type="button" onClick={addEstimateLineItem}>
+                        +
+                      </button>
+                      <button className="btn danger" type="button" onClick={() => removeEstimateLineItem(index)} disabled={estimateLineItems.length === 1}>
+                        -
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <div className="field">
+                  <label>Customer Notes</label>
+                  <textarea rows={3} value={customerNotes} onChange={(e) => setCustomerNotes(e.target.value)} />
+                </div>
+                <div className="field">
+                  <label>Internal Notes</label>
+                  <textarea rows={3} value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} />
+                </div>
+                <button className="btn" type="submit">
+                  Save Estimate
+                </button>
+              </form>
+            ) : (
+              <div className="card">
+                <h2>Estimates</h2>
+                <p>
+                  <b>#{existingEstimate.id} {existingEstimate.estimate_type}</b> - {existingEstimate.status} - {money(existingEstimate.total)}
+                </p>
+                {existingEstimate.line_items.map((item: any) => (
+                  <p className="muted" key={item.id}>
+                    {item.description}: {money(item.amount)}
+                  </p>
+                ))}
+                {existingEstimate.customer_notes && (
+                  <p className="muted">Customer Notes: {existingEstimate.customer_notes}</p>
+                )}
+                {existingEstimate.internal_notes && (
+                  <p className="muted">Internal Notes: {existingEstimate.internal_notes}</p>
+                )}
+                <button className="btn secondary" type="button" onClick={() => editEstimate(existingEstimate)}>
+                  Edit Estimate
+                </button>
               </div>
-              <div className="field">
-                <label>Internal Notes</label>
-                <textarea rows={3} value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} />
-              </div>
-              <button className="btn" type="submit">
-                Save Estimate
-              </button>
-            </form>
+            )}
 
             <form
               className="card"
@@ -324,25 +349,6 @@ export default function QuoteDetail() {
                     </button>
                   )}
                 </p>
-              ))}
-            </div>
-
-            <div className="card">
-              <h2>Estimates</h2>
-              {data.estimates.map((estimate: any) => (
-                <div key={estimate.id}>
-                  <p>
-                    <b>#{estimate.id} {estimate.estimate_type}</b> - {estimate.status} - {money(estimate.total)}
-                  </p>
-                  <button className="btn secondary" type="button" onClick={() => editEstimate(estimate)}>
-                    Edit
-                  </button>
-                  {estimate.line_items.map((item: any) => (
-                    <p className="muted" key={item.id}>
-                      {item.description}: {money(item.amount)}
-                    </p>
-                  ))}
-                </div>
               ))}
             </div>
 
