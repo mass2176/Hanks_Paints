@@ -125,8 +125,11 @@ export default function QuoteDetail() {
   const inspectionComplete = Boolean(data?.quote?.physical_inspection_completed)
   const inspectionLocked = quotationComplete || quoteStatus === 'Final Estimate Approved' || quoteStatus === 'Converted to Job'
   const estimateStatus = existingEstimate
-    ? `${existingEstimate.estimate_type === 'final' ? 'Final' : 'Preliminary'} Created`
+    ? `${existingEstimate.estimate_type === 'final' ? 'Final Estimate' : 'Preliminary Photo Estimate'}`
     : 'Not Created'
+  const requestStatus = quoteStatus === 'Preliminary Estimate Ready' || quoteStatus === 'Final Estimate Ready'
+    ? 'Ready for Customer Approval'
+    : quoteStatus
   const workflowButtonText = quoteStatus === 'Request Received'
     ? 'Start Review'
     : quotationComplete
@@ -253,10 +256,10 @@ export default function QuoteDetail() {
 
             <CollapsibleCard title="Workflow" defaultOpen>
               <p className="muted">
-                Quote: {quoteStatus}
+                Request Status: {requestStatus}
               </p>
               <p className="muted">
-                Estimate: {estimateStatus}
+                Estimate Type: {estimateStatus}
               </p>
               <p className="muted">
                 Inspection: {inspectionComplete ? 'Completed' : 'Not Completed'}
