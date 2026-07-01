@@ -15,6 +15,8 @@ export default function Page() {
   const [message, setMessage] = useState('')
   const [appointment, setAppointment] = useState('')
   const [files, setFiles] = useState<File[]>([])
+  const [typedLegalName, setTypedLegalName] = useState('')
+  const [approvalAcknowledged, setApprovalAcknowledged] = useState(false)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -118,8 +120,27 @@ export default function Page() {
     }, 'Media uploaded.')
   }
 
+  async function approveFinalEstimate(e: React.FormEvent) {
+    e.preventDefault()
+    if (!finalEstimate) return
+
+    await run(async () => {
+      const res = await fetch(`${apiBaseUrl}/estimates/${finalEstimate.id}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          typed_legal_name: typedLegalName,
+          customer_acknowledged: approvalAcknowledged,
+        }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      setTypedLegalName('')
+      setApprovalAcknowledged(false)
+    }, 'Final estimate approved.')
+  }
+
   const finalEstimate = data?.estimates?.find(
-    (estimate: any) => estimate.estimate_type === 'final' && estimate.status !== 'approved'
+    (estimate: any) => data?.quote?.status === 'Final Estimate Ready' && estimate.estimate_type === 'final' && estimate.status !== 'approved'
   )
   const pendingSupplement = data?.jobs
     ?.flatMap((job: any) => job.supplements)
@@ -168,25 +189,30 @@ export default function Page() {
             <div className="card">
               <h2>Approvals</h2>
               {finalEstimate ? (
-                <>
+                <form onSubmit={approveFinalEstimate}>
                   <p>
                     Final estimate total: <b>{money(finalEstimate.total)}</b>
                   </p>
-                  <button
-                    className="btn"
-                    onClick={() =>
-                      run(async () => {
-                        const res = await fetch(
-                          `${apiBaseUrl}/estimates/${finalEstimate.id}/approve?typed_signature=${encodeURIComponent(data.customer.full_name)}`,
-                          { method: 'POST' }
-                        )
-                        if (!res.ok) throw new Error(await res.text())
-                      }, 'Final estimate approved.')
-                    }
-                  >
+                  <p className="muted">
+                    I approve this final estimate and authorize Hanks Paints to begin the listed repairs. I understand hidden damage may require a separate supplement or change order approval.
+                  </p>
+                  <div className="field">
+                    <label>Typed Legal Name</label>
+                    <input value={typedLegalName} onChange={(e) => setTypedLegalName(e.target.value)} required />
+                  </div>
+                  <label className="muted">
+                    <input
+                      checked={approvalAcknowledged}
+                      onChange={(e) => setApprovalAcknowledged(e.target.checked)}
+                      required
+                      type="checkbox"
+                    />{' '}
+                    I understand this approval authorizes the final estimate total shown above.
+                  </label>
+                  <button className="btn" disabled={!typedLegalName.trim() || !approvalAcknowledged} type="submit">
                     Approve Final Estimate & Authorize Repairs
                   </button>
-                </>
+                </form>
               ) : (
                 <p className="muted">No final estimate is waiting for approval.</p>
               )}

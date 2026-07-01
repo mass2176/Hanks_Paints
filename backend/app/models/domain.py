@@ -124,6 +124,20 @@ class EstimateLineItem(Base):
     amount: Mapped[float] = mapped_column(Float)
     customer_visible: Mapped[bool] = mapped_column(Boolean, default=True)
 
+class EstimateApproval(Base):
+    __tablename__ = "estimate_approvals"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    estimate_id: Mapped[int] = mapped_column(ForeignKey("estimates.id"))
+    quote_id: Mapped[int] = mapped_column(ForeignKey("quote_requests.id"))
+    typed_legal_name: Mapped[str] = mapped_column(String(200))
+    authorization_text: Mapped[str] = mapped_column(Text)
+    approved_total: Mapped[float] = mapped_column(Float)
+    estimate_version: Mapped[int] = mapped_column(Integer)
+    customer_acknowledged: Mapped[bool] = mapped_column(Boolean, default=True)
+    ip_address: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
 class Job(Base):
     __tablename__ = "jobs"
     id: Mapped[int] = mapped_column(primary_key=True)

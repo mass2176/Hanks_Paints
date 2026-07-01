@@ -59,6 +59,10 @@ class AppointmentRequestIn(BaseModel):
 class InspectionCompleteIn(BaseModel):
     notes: str
 
+class EstimateApprovalIn(BaseModel):
+    typed_legal_name: str
+    customer_acknowledged: bool
+
 class MessageIn(BaseModel):
     body: str
     sender_type: str = "customer"

@@ -1,20 +1,25 @@
 import os, shutil, uuid
 from datetime import datetime
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.domain import (
-    Activity, Appointment, AppointmentStatus, Customer, Estimate, EstimateLineItem,
+    Activity, Appointment, AppointmentStatus, Customer, Estimate, EstimateApproval, EstimateLineItem,
     Invoice, Job, JobStatus, MediaFile, Message, Payment, QuoteRequest, QuoteStatus,
     Supplement, Vehicle, Visibility
 )
-from app.schemas.quote import AppointmentRequestIn, EstimateCreate, InspectionCompleteIn, MessageIn, PaymentIn, QuoteCreate, QuoteOut
+from app.schemas.quote import AppointmentRequestIn, EstimateApprovalIn, EstimateCreate, InspectionCompleteIn, MessageIn, PaymentIn, QuoteCreate, QuoteOut
 from app.services.activity import log_activity
 from app.services.notifications import send_customer_notification
 
 router = APIRouter()
+
+FINAL_ESTIMATE_AUTHORIZATION_TEXT = (
+    "I approve this final estimate and authorize Hanks Paints to begin the listed repairs. "
+    "I understand hidden damage may require a separate supplement or change order approval."
+)
 
 def quote_snapshot(db: Session, quote_id: int, *, public: bool = False):
     quote = db.get(QuoteRequest, quote_id)
@@ -39,6 +44,7 @@ def quote_snapshot(db: Session, quote_id: int, *, public: bool = False):
         if public:
             items_query = items_query.filter(EstimateLineItem.customer_visible == True)  # noqa: E712
         items = items_query.all()
+        approval = db.query(EstimateApproval).filter(EstimateApproval.estimate_id == estimate.id).order_by(EstimateApproval.created_at.desc()).first()
         estimate_rows.append({
             "id": estimate.id,
             "estimate_type": estimate.estimate_type,
@@ -58,6 +64,14 @@ def quote_snapshot(db: Session, quote_id: int, *, public: bool = False):
                 }
                 for item in items
             ],
+            "approval": None if not approval else {
+                "id": approval.id,
+                "typed_legal_name": approval.typed_legal_name,
+                "authorization_text": approval.authorization_text,
+                "approved_total": approval.approved_total,
+                "estimate_version": approval.estimate_version,
+                "created_at": approval.created_at,
+            },
         })
 
     job_rows = []
@@ -250,6 +264,7 @@ def delete_quote(quote_id: int, db: Session = Depends(get_db)):
         db.query(Activity).filter(Activity.quote_id == quote_id).delete(synchronize_session=False)
 
     if estimate_ids:
+        db.query(EstimateApproval).filter(EstimateApproval.estimate_id.in_(estimate_ids)).delete(synchronize_session=False)
         db.query(EstimateLineItem).filter(EstimateLineItem.estimate_id.in_(estimate_ids)).delete(synchronize_session=False)
         db.query(Estimate).filter(Estimate.id.in_(estimate_ids)).delete(synchronize_session=False)
 
@@ -440,16 +455,61 @@ def update_estimate(estimate_id: int, payload: EstimateCreate, db: Session = Dep
     return {"id": est.id, "status": quote.status.value}
 
 @router.post("/estimates/{estimate_id}/approve")
-def approve_estimate(estimate_id: int, typed_signature: str, db: Session = Depends(get_db)):
+def approve_estimate(estimate_id: int, payload: EstimateApprovalIn, request: Request, db: Session = Depends(get_db)):
     est = db.get(Estimate, estimate_id)
     if not est: raise HTTPException(404, "Estimate not found")
     if est.estimate_type != "final": raise HTTPException(400, "Only final estimates can authorize repair start")
-    est.status = "approved"
+    if est.status == "approved":
+        raise HTTPException(400, "Estimate already approved")
+    if not payload.customer_acknowledged:
+        raise HTTPException(400, "Customer acknowledgment is required")
+    typed_name = payload.typed_legal_name.strip()
+    if not typed_name:
+        raise HTTPException(400, "Typed legal name is required")
+
     quote = db.get(QuoteRequest, est.quote_id)
+    if quote.status != QuoteStatus.final_ready:
+        raise HTTPException(400, "Final estimate is not ready for customer approval")
+
+    items = db.query(EstimateLineItem).filter(EstimateLineItem.estimate_id == est.id, EstimateLineItem.customer_visible == True).all()  # noqa: E712
+    approved_total = sum(item.amount for item in items)
+    est.status = "approved"
+    approval = EstimateApproval(
+        estimate_id=est.id,
+        quote_id=quote.id,
+        typed_legal_name=typed_name,
+        authorization_text=FINAL_ESTIMATE_AUTHORIZATION_TEXT,
+        approved_total=approved_total,
+        estimate_version=est.version,
+        customer_acknowledged=payload.customer_acknowledged,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    db.add(approval)
     quote.status = QuoteStatus.approved
+    db.commit(); db.refresh(approval)
+    log_activity(db, quote_id=quote.id, event="Final estimate approved and signed", actor="customer", detail=typed_name)
+    return {"approval_id": approval.id, "quote_status": quote.status.value}
+
+@router.post("/quotes/{quote_id}/convert-to-job")
+def convert_quote_to_job(quote_id: int, db: Session = Depends(get_db)):
+    quote = db.get(QuoteRequest, quote_id)
+    if not quote:
+        raise HTTPException(404, "Quote not found")
+    if quote.status != QuoteStatus.approved:
+        raise HTTPException(400, "Only approved final estimates can be converted to active jobs")
+
+    existing_job = db.query(Job).filter(Job.quote_id == quote_id).first()
+    if existing_job:
+        quote.status = QuoteStatus.converted
+        db.commit()
+        return {"job_id": existing_job.id, "quote_status": quote.status.value}
+
     job = Job(quote_id=quote.id, status=JobStatus.active)
-    db.add(job); db.commit(); db.refresh(job)
-    log_activity(db, quote_id=quote.id, job_id=job.id, event="Final estimate approved and signed", actor="customer", detail=typed_signature)
+    db.add(job)
+    quote.status = QuoteStatus.converted
+    db.commit(); db.refresh(job)
+    log_activity(db, quote_id=quote.id, job_id=job.id, event="Approved quote converted to active job", actor="employee")
     return {"job_id": job.id, "quote_status": quote.status.value}
 
 @router.post("/jobs/{job_id}/supplements")

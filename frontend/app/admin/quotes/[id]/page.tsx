@@ -122,28 +122,30 @@ export default function QuoteDetail() {
   const showEstimateForm = !existingEstimate || editingEstimateId !== null
   const quoteStatus = data?.quote?.status || ''
   const quotationComplete = quoteStatus === 'Preliminary Estimate Ready' || quoteStatus === 'Final Estimate Ready'
+  const quoteApproved = quoteStatus === 'Final Estimate Approved'
+  const quoteConverted = quoteStatus === 'Converted to Job'
   const inspectionComplete = Boolean(data?.quote?.physical_inspection_completed)
-  const inspectionLocked = quotationComplete || quoteStatus === 'Final Estimate Approved' || quoteStatus === 'Converted to Job'
+  const inspectionLocked = quotationComplete || quoteApproved || quoteConverted
   const estimateStatus = existingEstimate
     ? `${existingEstimate.estimate_type === 'final' ? 'Final Estimate' : 'Preliminary Photo Estimate'}`
     : 'Not Created'
-  const requestStatus = quoteStatus === 'Preliminary Estimate Ready' || quoteStatus === 'Final Estimate Ready'
-    ? 'Ready for Customer Approval'
-    : quoteStatus
+  const requestStatus = quoteStatus === 'Preliminary Estimate Ready'
+    ? 'Ready for Customer Review'
+    : quoteStatus === 'Final Estimate Ready'
+      ? 'Ready for Customer Approval'
+      : quoteStatus
   const workflowButtonText = quoteStatus === 'Request Received'
     ? 'Start Review'
     : quotationComplete
       ? 'Reopen Quotation'
-      : existingEstimate
-        ? 'Complete Quotation'
-        : ''
-  const workflowButtonDisabled = !data || quoteStatus === 'Final Estimate Approved' || quoteStatus === 'Converted to Job'
-  const showWorkflowButton = Boolean(workflowButtonText) || quoteStatus === 'Final Estimate Approved' || quoteStatus === 'Converted to Job'
-  const finalWorkflowLabel = quoteStatus === 'Final Estimate Approved'
-    ? 'Quote Approved'
-    : quoteStatus === 'Converted to Job'
-      ? 'Converted to Job'
-      : workflowButtonText
+      : quoteApproved
+        ? 'Convert to Active Job'
+        : existingEstimate
+          ? 'Complete Quotation'
+          : ''
+  const workflowButtonDisabled = !data || quoteConverted
+  const showWorkflowButton = Boolean(workflowButtonText) || quoteConverted
+  const finalWorkflowLabel = quoteConverted ? 'Converted to Job' : workflowButtonText
 
   async function runWorkflowAction() {
     if (quoteStatus === 'Request Received') {
@@ -162,6 +164,14 @@ export default function QuoteDetail() {
         const res = await fetch(`${apiBaseUrl}/quotes/${id}/reopen-quotation`, { method: 'POST' })
         if (!res.ok) throw new Error(await res.text())
       }, 'Quotation reopened.')
+      return
+    }
+
+    if (quoteApproved) {
+      await run(async () => {
+        const res = await fetch(`${apiBaseUrl}/quotes/${id}/convert-to-job`, { method: 'POST' })
+        if (!res.ok) throw new Error(await res.text())
+      }, 'Quote converted to active job.')
       return
     }
 
