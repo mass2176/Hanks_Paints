@@ -323,6 +323,35 @@ def start_quotation(quote_id: int, db: Session = Depends(get_db)):
     send_customer_notification(customer.phone, "Hanks Paints: Your quote request is now under review.")
     return {"status": quote.status.value}
 
+@router.post("/quotes/{quote_id}/quotation-complete")
+def complete_quotation(quote_id: int, db: Session = Depends(get_db)):
+    quote = db.get(QuoteRequest, quote_id)
+    if not quote:
+        raise HTTPException(404, "Quote not found")
+
+    estimate = db.query(Estimate).filter(Estimate.quote_id == quote_id).order_by(Estimate.created_at.desc()).first()
+    if not estimate:
+        raise HTTPException(400, "Create an estimate before marking quotation complete")
+
+    quote.status = QuoteStatus.final_ready if estimate.estimate_type == "final" else QuoteStatus.preliminary_ready
+    db.commit()
+    log_activity(db, quote_id=quote.id, event="Quotation marked complete", actor="employee")
+    return {"status": quote.status.value}
+
+@router.post("/quotes/{quote_id}/reopen-quotation")
+def reopen_quotation(quote_id: int, db: Session = Depends(get_db)):
+    quote = db.get(QuoteRequest, quote_id)
+    if not quote:
+        raise HTTPException(404, "Quote not found")
+
+    if quote.status not in {QuoteStatus.preliminary_ready, QuoteStatus.final_ready}:
+        raise HTTPException(400, "Only completed quotations can be reopened")
+
+    quote.status = QuoteStatus.under_review
+    db.commit()
+    log_activity(db, quote_id=quote.id, event="Quotation reopened for changes", actor="employee")
+    return {"status": quote.status.value}
+
 @router.post("/quotes/{quote_id}/appointments")
 def request_appointment(quote_id: int, payload: AppointmentRequestIn, db: Session = Depends(get_db)):
     quote = db.get(QuoteRequest, quote_id)
@@ -368,7 +397,8 @@ def create_estimate(quote_id: int, payload: EstimateCreate, db: Session = Depend
     db.add(est); db.flush()
     for item in payload.line_items:
         db.add(EstimateLineItem(estimate_id=est.id, **item.model_dump()))
-    quote.status = QuoteStatus.final_ready if payload.estimate_type == "final" else QuoteStatus.preliminary_ready
+    if quote.status == QuoteStatus.received:
+        quote.status = QuoteStatus.under_review
     db.commit(); db.refresh(est)
     log_activity(db, quote_id=quote_id, event=f"{payload.estimate_type.title()} estimate created", actor="employee")
     return {"id": est.id, "status": quote.status.value}
@@ -395,7 +425,8 @@ def update_estimate(estimate_id: int, payload: EstimateCreate, db: Session = Dep
     for item in payload.line_items:
         db.add(EstimateLineItem(estimate_id=est.id, **item.model_dump()))
 
-    quote.status = QuoteStatus.final_ready if payload.estimate_type == "final" else QuoteStatus.preliminary_ready
+    if quote.status == QuoteStatus.received:
+        quote.status = QuoteStatus.under_review
     db.commit()
     log_activity(db, quote_id=quote.id, event=f"{payload.estimate_type.title()} estimate updated", actor="employee")
     return {"id": est.id, "status": quote.status.value}

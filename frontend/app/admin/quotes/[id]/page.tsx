@@ -118,9 +118,46 @@ export default function QuoteDetail() {
 
   const latestJob = data?.jobs?.[0]
   const latestInvoice = latestJob?.invoices?.[0]
-  const quotationStarted = data?.quote?.status !== 'Request Received'
   const existingEstimate = data?.estimates?.[0]
   const showEstimateForm = !existingEstimate || editingEstimateId !== null
+  const quoteStatus = data?.quote?.status || ''
+  const quotationComplete = quoteStatus === 'Preliminary Estimate Ready' || quoteStatus === 'Final Estimate Ready'
+  const workflowButtonText = quoteStatus === 'Request Received'
+    ? 'Start Quotation'
+    : quotationComplete
+      ? 'Reopen Quotation'
+      : existingEstimate
+        ? 'Mark Quotation Complete'
+        : 'Create Estimate First'
+  const workflowButtonDisabled = !data || (!existingEstimate && quoteStatus !== 'Request Received') || quoteStatus === 'Final Estimate Approved' || quoteStatus === 'Converted to Job'
+
+  async function runWorkflowAction() {
+    if (quoteStatus === 'Request Received') {
+      await run(async () => {
+        const res = await fetch(`${apiBaseUrl}/quotes/${id}/start-quotation`, { method: 'POST' })
+        if (!res.ok) throw new Error(await res.text())
+      }, 'Quotation started.')
+      return
+    }
+
+    if (quotationComplete) {
+      const confirmed = window.confirm('Reopen this quote for changes? This will move it back to Under Review.')
+      if (!confirmed) return
+
+      await run(async () => {
+        const res = await fetch(`${apiBaseUrl}/quotes/${id}/reopen-quotation`, { method: 'POST' })
+        if (!res.ok) throw new Error(await res.text())
+      }, 'Quotation reopened.')
+      return
+    }
+
+    if (existingEstimate) {
+      await run(async () => {
+        const res = await fetch(`${apiBaseUrl}/quotes/${id}/quotation-complete`, { method: 'POST' })
+        if (!res.ok) throw new Error(await res.text())
+      }, 'Quotation marked complete.')
+    }
+  }
 
   function updateEstimateLineItem(index: number, field: 'description' | 'amount', value: string) {
     setEstimateLineItems((items) => items.map((item, itemIndex) => (
@@ -184,15 +221,10 @@ export default function QuoteDetail() {
               <div className="btns">
                 <button
                   className="btn"
-                  disabled={quotationStarted}
-                  onClick={() =>
-                    run(async () => {
-                      const res = await fetch(`${apiBaseUrl}/quotes/${id}/start-quotation`, { method: 'POST' })
-                      if (!res.ok) throw new Error(await res.text())
-                    }, 'Quotation started.')
-                  }
+                  disabled={workflowButtonDisabled}
+                  onClick={runWorkflowAction}
                 >
-                  {quotationStarted ? 'Quotation Started' : 'Start Quotation'}
+                  {workflowButtonText}
                 </button>
                 <button
                   className="btn secondary"
