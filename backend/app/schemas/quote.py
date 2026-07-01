@@ -56,6 +56,9 @@ class AppointmentRequestIn(BaseModel):
     requested_start: datetime
     notes: str | None = None
 
+class InspectionCompleteIn(BaseModel):
+    notes: str
+
 class MessageIn(BaseModel):
     body: str
     sender_type: str = "customer"

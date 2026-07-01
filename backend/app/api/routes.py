@@ -10,7 +10,7 @@ from app.models.domain import (
     Invoice, Job, JobStatus, MediaFile, Message, Payment, QuoteRequest, QuoteStatus,
     Supplement, Vehicle, Visibility
 )
-from app.schemas.quote import AppointmentRequestIn, EstimateCreate, MessageIn, PaymentIn, QuoteCreate, QuoteOut
+from app.schemas.quote import AppointmentRequestIn, EstimateCreate, InspectionCompleteIn, MessageIn, PaymentIn, QuoteCreate, QuoteOut
 from app.services.activity import log_activity
 from app.services.notifications import send_customer_notification
 
@@ -375,9 +375,11 @@ def confirm_appointment(appointment_id: int, confirmed_start: datetime | None = 
     return {"status": appt.status.value}
 
 @router.post("/quotes/{quote_id}/inspection-complete")
-def mark_inspection_complete(quote_id: int, db: Session = Depends(get_db)):
+def mark_inspection_complete(quote_id: int, payload: InspectionCompleteIn, db: Session = Depends(get_db)):
     quote = db.get(QuoteRequest, quote_id)
     if not quote: raise HTTPException(404, "Quote not found")
+    if not payload.notes.strip():
+        raise HTTPException(400, "Inspection notes are required")
     quote.physical_inspection_completed = True
     if quote.status not in {
         QuoteStatus.preliminary_ready,
@@ -387,7 +389,7 @@ def mark_inspection_complete(quote_id: int, db: Session = Depends(get_db)):
     }:
         quote.status = QuoteStatus.inspection_completed
     db.commit()
-    log_activity(db, quote_id=quote_id, event="Physical inspection completed", actor="employee")
+    log_activity(db, quote_id=quote_id, event="Physical inspection completed", actor="employee", detail=payload.notes.strip())
     return {"status": quote.status.value}
 
 @router.post("/quotes/{quote_id}/estimates")

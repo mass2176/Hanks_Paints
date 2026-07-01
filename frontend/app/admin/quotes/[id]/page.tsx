@@ -170,6 +170,29 @@ export default function QuoteDetail() {
     }
   }
 
+  async function markInspectionComplete() {
+    const confirmed = window.confirm('Confirm that this vehicle has been physically inspected in person?')
+    if (!confirmed) return
+
+    const notes = window.prompt('Enter inspection notes. Include who inspected the vehicle and any key findings.')
+    if (notes === null) return
+
+    const trimmedNotes = notes.trim()
+    if (!trimmedNotes) {
+      setError('Inspection notes are required before marking inspection complete.')
+      return
+    }
+
+    await run(async () => {
+      const res = await fetch(`${apiBaseUrl}/quotes/${id}/inspection-complete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: trimmedNotes }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+    }, 'Inspection marked complete.')
+  }
+
   function updateEstimateLineItem(index: number, field: 'description' | 'amount', value: string) {
     setEstimateLineItems((items) => items.map((item, itemIndex) => (
       itemIndex === index ? { ...item, [field]: value } : item
@@ -254,12 +277,7 @@ export default function QuoteDetail() {
                 {!inspectionComplete && !inspectionLocked && (
                   <button
                     className="btn secondary"
-                    onClick={() =>
-                      run(async () => {
-                        const res = await fetch(`${apiBaseUrl}/quotes/${id}/inspection-complete`, { method: 'POST' })
-                        if (!res.ok) throw new Error(await res.text())
-                      }, 'Inspection marked complete.')
-                    }
+                    onClick={markInspectionComplete}
                   >
                     Mark Inspection Complete
                   </button>
