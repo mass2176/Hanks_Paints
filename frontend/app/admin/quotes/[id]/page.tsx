@@ -78,6 +78,7 @@ export default function QuoteDetail() {
 
   const latestJob = data?.jobs?.[0]
   const latestInvoice = latestJob?.invoices?.[0]
+  const quotationStarted = data?.quote?.status !== 'Request Received'
 
   function updateEstimateLineItem(index: number, field: 'description' | 'amount', value: string) {
     setEstimateLineItems((items) => items.map((item, itemIndex) => (
@@ -142,6 +143,7 @@ export default function QuoteDetail() {
               <div className="btns">
                 <button
                   className="btn"
+                  disabled={quotationStarted}
                   onClick={() =>
                     run(async () => {
                       const res = await fetch(`${apiBaseUrl}/quotes/${id}/start-quotation`, { method: 'POST' })
@@ -149,7 +151,7 @@ export default function QuoteDetail() {
                     }, 'Quotation started.')
                   }
                 >
-                  Start Quotation
+                  {quotationStarted ? 'Quotation Started' : 'Start Quotation'}
                 </button>
                 <button
                   className="btn secondary"
