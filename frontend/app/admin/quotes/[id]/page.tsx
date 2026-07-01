@@ -122,6 +122,10 @@ export default function QuoteDetail() {
   const showEstimateForm = !existingEstimate || editingEstimateId !== null
   const quoteStatus = data?.quote?.status || ''
   const quotationComplete = quoteStatus === 'Preliminary Estimate Ready' || quoteStatus === 'Final Estimate Ready'
+  const inspectionComplete = Boolean(data?.quote?.physical_inspection_completed)
+  const inspectionLocked = quotationComplete || quoteStatus === 'Final Estimate Approved' || quoteStatus === 'Converted to Job'
+  const inspectionButtonDisabled = !data || inspectionComplete || inspectionLocked
+  const inspectionButtonText = inspectionComplete ? 'Inspection Completed' : 'Mark Inspection Complete'
   const workflowButtonText = quoteStatus === 'Request Received'
     ? 'Start Quotation'
     : quotationComplete
@@ -218,6 +222,9 @@ export default function QuoteDetail() {
             </div>
 
             <CollapsibleCard title="Workflow" defaultOpen>
+              <p className="muted">
+                Inspection: {inspectionComplete ? 'Completed' : 'Not Completed'}
+              </p>
               <div className="btns">
                 <button
                   className="btn"
@@ -228,6 +235,7 @@ export default function QuoteDetail() {
                 </button>
                 <button
                   className="btn secondary"
+                  disabled={inspectionButtonDisabled}
                   onClick={() =>
                     run(async () => {
                       const res = await fetch(`${apiBaseUrl}/quotes/${id}/inspection-complete`, { method: 'POST' })
@@ -235,7 +243,7 @@ export default function QuoteDetail() {
                     }, 'Inspection marked complete.')
                   }
                 >
-                  Mark Inspection Complete
+                  {inspectionButtonText}
                 </button>
                 <button className="btn danger" type="button" onClick={deleteQuote}>
                   Delete Quote

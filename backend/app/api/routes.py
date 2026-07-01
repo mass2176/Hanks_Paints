@@ -379,7 +379,13 @@ def mark_inspection_complete(quote_id: int, db: Session = Depends(get_db)):
     quote = db.get(QuoteRequest, quote_id)
     if not quote: raise HTTPException(404, "Quote not found")
     quote.physical_inspection_completed = True
-    quote.status = QuoteStatus.inspection_completed
+    if quote.status not in {
+        QuoteStatus.preliminary_ready,
+        QuoteStatus.final_ready,
+        QuoteStatus.approved,
+        QuoteStatus.converted,
+    }:
+        quote.status = QuoteStatus.inspection_completed
     db.commit()
     log_activity(db, quote_id=quote_id, event="Physical inspection completed", actor="employee")
     return {"status": quote.status.value}
