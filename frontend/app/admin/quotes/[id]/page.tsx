@@ -124,23 +124,30 @@ export default function QuoteDetail() {
   const quotationComplete = quoteStatus === 'Preliminary Estimate Ready' || quoteStatus === 'Final Estimate Ready'
   const inspectionComplete = Boolean(data?.quote?.physical_inspection_completed)
   const inspectionLocked = quotationComplete || quoteStatus === 'Final Estimate Approved' || quoteStatus === 'Converted to Job'
-  const inspectionButtonDisabled = !data || inspectionComplete || inspectionLocked
-  const inspectionButtonText = inspectionComplete ? 'Inspection Completed' : 'Mark Inspection Complete'
+  const estimateStatus = existingEstimate
+    ? `${existingEstimate.estimate_type === 'final' ? 'Final' : 'Preliminary'} Created`
+    : 'Not Created'
   const workflowButtonText = quoteStatus === 'Request Received'
-    ? 'Start Quotation'
+    ? 'Start Review'
     : quotationComplete
       ? 'Reopen Quotation'
       : existingEstimate
-        ? 'Mark Quotation Complete'
-        : 'Create Estimate First'
-  const workflowButtonDisabled = !data || (!existingEstimate && quoteStatus !== 'Request Received') || quoteStatus === 'Final Estimate Approved' || quoteStatus === 'Converted to Job'
+        ? 'Complete Quotation'
+        : ''
+  const workflowButtonDisabled = !data || quoteStatus === 'Final Estimate Approved' || quoteStatus === 'Converted to Job'
+  const showWorkflowButton = Boolean(workflowButtonText) || quoteStatus === 'Final Estimate Approved' || quoteStatus === 'Converted to Job'
+  const finalWorkflowLabel = quoteStatus === 'Final Estimate Approved'
+    ? 'Quote Approved'
+    : quoteStatus === 'Converted to Job'
+      ? 'Converted to Job'
+      : workflowButtonText
 
   async function runWorkflowAction() {
     if (quoteStatus === 'Request Received') {
       await run(async () => {
         const res = await fetch(`${apiBaseUrl}/quotes/${id}/start-quotation`, { method: 'POST' })
         if (!res.ok) throw new Error(await res.text())
-      }, 'Quotation started.')
+      }, 'Review started.')
       return
     }
 
@@ -223,28 +230,45 @@ export default function QuoteDetail() {
 
             <CollapsibleCard title="Workflow" defaultOpen>
               <p className="muted">
+                Quote: {quoteStatus}
+              </p>
+              <p className="muted">
+                Estimate: {estimateStatus}
+              </p>
+              <p className="muted">
                 Inspection: {inspectionComplete ? 'Completed' : 'Not Completed'}
               </p>
+              {!existingEstimate && quoteStatus !== 'Request Received' && (
+                <p className="muted">Create an estimate before completing quotation.</p>
+              )}
               <div className="btns">
-                <button
-                  className="btn"
-                  disabled={workflowButtonDisabled}
-                  onClick={runWorkflowAction}
-                >
-                  {workflowButtonText}
-                </button>
-                <button
-                  className="btn secondary"
-                  disabled={inspectionButtonDisabled}
-                  onClick={() =>
-                    run(async () => {
-                      const res = await fetch(`${apiBaseUrl}/quotes/${id}/inspection-complete`, { method: 'POST' })
-                      if (!res.ok) throw new Error(await res.text())
-                    }, 'Inspection marked complete.')
-                  }
-                >
-                  {inspectionButtonText}
-                </button>
+                {showWorkflowButton && (
+                  <button
+                    className="btn"
+                    disabled={workflowButtonDisabled}
+                    onClick={runWorkflowAction}
+                  >
+                    {finalWorkflowLabel}
+                  </button>
+                )}
+                {!inspectionComplete && !inspectionLocked && (
+                  <button
+                    className="btn secondary"
+                    onClick={() =>
+                      run(async () => {
+                        const res = await fetch(`${apiBaseUrl}/quotes/${id}/inspection-complete`, { method: 'POST' })
+                        if (!res.ok) throw new Error(await res.text())
+                      }, 'Inspection marked complete.')
+                    }
+                  >
+                    Mark Inspection Complete
+                  </button>
+                )}
+              </div>
+            </CollapsibleCard>
+
+            <CollapsibleCard title="Admin Actions">
+              <div className="btns">
                 <button className="btn danger" type="button" onClick={deleteQuote}>
                   Delete Quote
                 </button>
