@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useParams } from 'next/navigation'
 import { apiBaseUrl } from '../../../../lib/config'
 
@@ -10,6 +10,46 @@ function money(value: number) {
 
 function emptyLineItem() {
   return { description: '', amount: '' }
+}
+
+function CollapsibleCard({
+  title,
+  defaultOpen = false,
+  children,
+}: {
+  title: string
+  defaultOpen?: boolean
+  children: ReactNode
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+
+  return (
+    <div className="card">
+      <button
+        aria-expanded={open}
+        className="muted"
+        onClick={() => setOpen((current) => !current)}
+        style={{
+          alignItems: 'center',
+          background: 'transparent',
+          border: 0,
+          color: 'inherit',
+          cursor: 'pointer',
+          display: 'flex',
+          font: 'inherit',
+          justifyContent: 'space-between',
+          padding: 0,
+          textAlign: 'left',
+          width: '100%',
+        }}
+        type="button"
+      >
+        <h2 style={{ margin: 0 }}>{title}</h2>
+        <span aria-hidden="true">{open ? '▾' : '▸'}</span>
+      </button>
+      {open && <div style={{ marginTop: 16 }}>{children}</div>}
+    </div>
+  )
 }
 
 export default function QuoteDetail() {
@@ -140,8 +180,7 @@ export default function QuoteDetail() {
               <p className="muted">{data.quote.damage_description}</p>
             </div>
 
-            <div className="card">
-              <h2>Workflow</h2>
+            <CollapsibleCard title="Workflow" defaultOpen>
               <div className="btns">
                 <button
                   className="btn"
@@ -170,84 +209,83 @@ export default function QuoteDetail() {
                   Delete Quote
                 </button>
               </div>
-            </div>
+            </CollapsibleCard>
           </div>
 
           <div className="grid" style={{ marginTop: 18 }}>
             {showEstimateForm ? (
-              <form
-                className="card"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  run(async () => {
-                    const endpoint = editingEstimateId
-                      ? `${apiBaseUrl}/estimates/${editingEstimateId}`
-                      : `${apiBaseUrl}/quotes/${id}/estimates`
-                    const res = await fetch(endpoint, {
-                      method: editingEstimateId ? 'PUT' : 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        estimate_type: estimateType,
-                        customer_notes: customerNotes,
-                        internal_notes: internalNotes,
-                        line_items: estimateLineItems.map((item) => (
-                          {
-                            description: item.description,
-                            category: 'Labor/Repair',
-                            amount: Number(item.amount),
-                            customer_visible: true,
-                          }
-                        )),
-                      }),
-                    })
-                    if (!res.ok) throw new Error(await res.text())
-                    resetEstimateForm()
-                  }, editingEstimateId ? `${estimateType} estimate updated.` : `${estimateType} estimate created.`)
-                }}
-              >
-                <h2>{editingEstimateId ? `Edit Estimate #${editingEstimateId}` : 'Create Estimate'}</h2>
-                <div className="field">
-                  <label>Estimate Type</label>
-                  <select value={estimateType} onChange={(e) => setEstimateType(e.target.value)}>
-                    <option value="preliminary">Preliminary Photo Estimate</option>
-                    <option value="final">Final Estimate After Physical Inspection</option>
-                  </select>
-                </div>
-                {estimateLineItems.map((item, index) => (
-                  <div key={index}>
-                    <div className="field">
-                      <label>Line Item</label>
-                      <input value={item.description} onChange={(e) => updateEstimateLineItem(index, 'description', e.target.value)} required />
-                    </div>
-                    <div className="field">
-                      <label>Amount</label>
-                      <input type="number" min="0" step="0.01" value={item.amount} onChange={(e) => updateEstimateLineItem(index, 'amount', e.target.value)} required />
-                    </div>
-                    <div className="btns" style={{ marginTop: 0 }}>
-                      <button className="btn secondary" type="button" onClick={addEstimateLineItem}>
-                        +
-                      </button>
-                      <button className="btn danger" type="button" onClick={() => removeEstimateLineItem(index)} disabled={estimateLineItems.length === 1}>
-                        -
-                      </button>
-                    </div>
+              <CollapsibleCard title={editingEstimateId ? `Edit Estimate #${editingEstimateId}` : 'Create Estimate'} defaultOpen>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    run(async () => {
+                      const endpoint = editingEstimateId
+                        ? `${apiBaseUrl}/estimates/${editingEstimateId}`
+                        : `${apiBaseUrl}/quotes/${id}/estimates`
+                      const res = await fetch(endpoint, {
+                        method: editingEstimateId ? 'PUT' : 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          estimate_type: estimateType,
+                          customer_notes: customerNotes,
+                          internal_notes: internalNotes,
+                          line_items: estimateLineItems.map((item) => (
+                            {
+                              description: item.description,
+                              category: 'Labor/Repair',
+                              amount: Number(item.amount),
+                              customer_visible: true,
+                            }
+                          )),
+                        }),
+                      })
+                      if (!res.ok) throw new Error(await res.text())
+                      resetEstimateForm()
+                    }, editingEstimateId ? `${estimateType} estimate updated.` : `${estimateType} estimate created.`)
+                  }}
+                >
+                  <div className="field">
+                    <label>Estimate Type</label>
+                    <select value={estimateType} onChange={(e) => setEstimateType(e.target.value)}>
+                      <option value="preliminary">Preliminary Photo Estimate</option>
+                      <option value="final">Final Estimate After Physical Inspection</option>
+                    </select>
                   </div>
-                ))}
-                <div className="field">
-                  <label>Customer Notes</label>
-                  <textarea rows={3} value={customerNotes} onChange={(e) => setCustomerNotes(e.target.value)} />
-                </div>
-                <div className="field">
-                  <label>Internal Notes</label>
-                  <textarea rows={3} value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} />
-                </div>
-                <button className="btn" type="submit">
-                  Save Estimate
-                </button>
-              </form>
+                  {estimateLineItems.map((item, index) => (
+                    <div key={index}>
+                      <div className="field">
+                        <label>Line Item</label>
+                        <input value={item.description} onChange={(e) => updateEstimateLineItem(index, 'description', e.target.value)} required />
+                      </div>
+                      <div className="field">
+                        <label>Amount</label>
+                        <input type="number" min="0" step="0.01" value={item.amount} onChange={(e) => updateEstimateLineItem(index, 'amount', e.target.value)} required />
+                      </div>
+                      <div className="btns" style={{ marginTop: 0 }}>
+                        <button className="btn secondary" type="button" onClick={addEstimateLineItem}>
+                          +
+                        </button>
+                        <button className="btn danger" type="button" onClick={() => removeEstimateLineItem(index)} disabled={estimateLineItems.length === 1}>
+                          -
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="field">
+                    <label>Customer Notes</label>
+                    <textarea rows={3} value={customerNotes} onChange={(e) => setCustomerNotes(e.target.value)} />
+                  </div>
+                  <div className="field">
+                    <label>Internal Notes</label>
+                    <textarea rows={3} value={internalNotes} onChange={(e) => setInternalNotes(e.target.value)} />
+                  </div>
+                  <button className="btn" type="submit">
+                    Save Estimate
+                  </button>
+                </form>
+              </CollapsibleCard>
             ) : (
-              <div className="card">
-                <h2>Estimates</h2>
+              <CollapsibleCard title="Estimate" defaultOpen>
                 <p>
                   <b>#{existingEstimate.id} {existingEstimate.estimate_type}</b> - {existingEstimate.status} - {money(existingEstimate.total)}
                 </p>
@@ -265,72 +303,71 @@ export default function QuoteDetail() {
                 <button className="btn secondary" type="button" onClick={() => editEstimate(existingEstimate)}>
                   Edit Estimate
                 </button>
-              </div>
+              </CollapsibleCard>
             )}
 
-            <form
-              className="card"
-              onSubmit={(e) => {
-                e.preventDefault()
-                run(async () => {
-                  if (!files?.length) return
-                  for (const file of Array.from(files)) {
-                    const body = new FormData()
-                    body.append('file', file)
-                    const res = await fetch(
-                      `${apiBaseUrl}/quotes/${id}/media?visibility=${mediaVisibility}&uploaded_by=employee`,
-                      { method: 'POST', body }
-                    )
-                    if (!res.ok) throw new Error(await res.text())
-                  }
-                  setFiles(null)
-                }, 'Shop media uploaded.')
-              }}
-            >
-              <h2>Upload Shop Media</h2>
-              <div className="field">
-                <label>Visibility</label>
-                <select value={mediaVisibility} onChange={(e) => setMediaVisibility(e.target.value)}>
-                  <option value="customer_visible">Customer Visible</option>
-                  <option value="internal_only">Internal Only</option>
-                </select>
-              </div>
-              <div className="field">
-                <input type="file" accept="image/*,video/*,.pdf" multiple onChange={(e) => setFiles(e.target.files)} />
-              </div>
-              <button className="btn" type="submit">
-                Upload Media
-              </button>
-            </form>
+            <CollapsibleCard title="Upload Shop Media">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  run(async () => {
+                    if (!files?.length) return
+                    for (const file of Array.from(files)) {
+                      const body = new FormData()
+                      body.append('file', file)
+                      const res = await fetch(
+                        `${apiBaseUrl}/quotes/${id}/media?visibility=${mediaVisibility}&uploaded_by=employee`,
+                        { method: 'POST', body }
+                      )
+                      if (!res.ok) throw new Error(await res.text())
+                    }
+                    setFiles(null)
+                  }, 'Shop media uploaded.')
+                }}
+              >
+                <div className="field">
+                  <label>Visibility</label>
+                  <select value={mediaVisibility} onChange={(e) => setMediaVisibility(e.target.value)}>
+                    <option value="customer_visible">Customer Visible</option>
+                    <option value="internal_only">Internal Only</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <input type="file" accept="image/*,video/*,.pdf" multiple onChange={(e) => setFiles(e.target.files)} />
+                </div>
+                <button className="btn" type="submit">
+                  Upload Media
+                </button>
+              </form>
+            </CollapsibleCard>
 
-            <form
-              className="card"
-              onSubmit={(e) => {
-                e.preventDefault()
-                run(async () => {
-                  const res = await fetch(`${apiBaseUrl}/quotes/${id}/messages`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sender_type: 'shop', body: shopMessage }),
-                  })
-                  if (!res.ok) throw new Error(await res.text())
-                  setShopMessage('')
-                }, 'Shop message sent.')
-              }}
-            >
-              <h2>Message Customer</h2>
-              <div className="field">
-                <textarea rows={5} value={shopMessage} onChange={(e) => setShopMessage(e.target.value)} required />
-              </div>
-              <button className="btn" type="submit">
-                Send Message
-              </button>
-            </form>
+            <CollapsibleCard title="Message Customer">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  run(async () => {
+                    const res = await fetch(`${apiBaseUrl}/quotes/${id}/messages`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ sender_type: 'shop', body: shopMessage }),
+                    })
+                    if (!res.ok) throw new Error(await res.text())
+                    setShopMessage('')
+                  }, 'Shop message sent.')
+                }}
+              >
+                <div className="field">
+                  <textarea rows={5} value={shopMessage} onChange={(e) => setShopMessage(e.target.value)} required />
+                </div>
+                <button className="btn" type="submit">
+                  Send Message
+                </button>
+              </form>
+            </CollapsibleCard>
           </div>
 
           <div className="grid" style={{ marginTop: 18 }}>
-            <div className="card">
-              <h2>Appointments</h2>
+            <CollapsibleCard title="Appointments">
               {data.appointments.map((item: any) => (
                 <p className="muted" key={item.id}>
                   #{item.id} {item.status} - {new Date(item.requested_start).toLocaleString()}
@@ -350,10 +387,9 @@ export default function QuoteDetail() {
                   )}
                 </p>
               ))}
-            </div>
+            </CollapsibleCard>
 
-            <div className="card">
-              <h2>Media</h2>
+            <CollapsibleCard title="Media">
               {data.media.map((item: any) => (
                 <p className="muted" key={item.id}>
                   <a href={`${apiBaseUrl.replace('/api', '')}${item.media_url}`} target="_blank">
@@ -362,130 +398,127 @@ export default function QuoteDetail() {
                   - {item.visibility} - {item.uploaded_by}
                 </p>
               ))}
-            </div>
+            </CollapsibleCard>
           </div>
 
           {latestJob && (
             <div className="grid" style={{ marginTop: 18 }}>
-              <form
-                className="card"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  run(async () => {
-                    const res = await fetch(
-                      `${apiBaseUrl}/jobs/${latestJob.id}/supplements?reason=${encodeURIComponent(supplementReason)}&amount=${encodeURIComponent(supplementAmount || '0')}`,
-                      { method: 'POST' }
-                    )
-                    if (!res.ok) throw new Error(await res.text())
-                    setSupplementReason('')
-                    setSupplementAmount('')
-                  }, 'Supplement created.')
-                }}
-              >
-                <h2>Supplement</h2>
+              <CollapsibleCard title="Supplement">
                 <p className="muted">Job #{latestJob.id} - {latestJob.status}</p>
-                <div className="field">
-                  <label>Reason</label>
-                  <textarea rows={3} value={supplementReason} onChange={(e) => setSupplementReason(e.target.value)} required />
-                </div>
-                <div className="field">
-                  <label>Amount</label>
-                  <input type="number" min="0" step="0.01" value={supplementAmount} onChange={(e) => setSupplementAmount(e.target.value)} />
-                </div>
-                <button className="btn" type="submit">
-                  Create Change Order
-                </button>
-              </form>
-
-              <form
-                className="card"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  run(async () => {
-                    const res = await fetch(
-                      `${apiBaseUrl}/jobs/${latestJob.id}/invoice?total_due=${encodeURIComponent(invoiceTotal)}`,
-                      { method: 'POST' }
-                    )
-                    if (!res.ok) throw new Error(await res.text())
-                    setInvoiceTotal('')
-                  }, 'Invoice created.')
-                }}
-              >
-                <h2>Invoice</h2>
-                <div className="field">
-                  <label>Total Due</label>
-                  <input type="number" min="0" step="0.01" value={invoiceTotal} onChange={(e) => setInvoiceTotal(e.target.value)} required />
-                </div>
-                <button className="btn" type="submit">
-                  Create Invoice
-                </button>
-              </form>
-
-              {latestInvoice && (
                 <form
-                  className="card"
                   onSubmit={(e) => {
                     e.preventDefault()
                     run(async () => {
-                      const res = await fetch(`${apiBaseUrl}/invoices/${latestInvoice.id}/payments`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ amount: Number(paymentAmount), method: paymentMethod, note: 'Recorded in admin portal' }),
-                      })
+                      const res = await fetch(
+                        `${apiBaseUrl}/jobs/${latestJob.id}/supplements?reason=${encodeURIComponent(supplementReason)}&amount=${encodeURIComponent(supplementAmount || '0')}`,
+                        { method: 'POST' }
+                      )
                       if (!res.ok) throw new Error(await res.text())
-                      setPaymentAmount('')
-                    }, 'Payment recorded.')
+                      setSupplementReason('')
+                      setSupplementAmount('')
+                    }, 'Supplement created.')
                   }}
                 >
-                  <h2>Record Payment</h2>
-                  <p className="muted">Invoice #{latestInvoice.id}: {latestInvoice.status}, balance {money(latestInvoice.balance_due)}</p>
+                  <div className="field">
+                    <label>Reason</label>
+                    <textarea rows={3} value={supplementReason} onChange={(e) => setSupplementReason(e.target.value)} required />
+                  </div>
                   <div className="field">
                     <label>Amount</label>
-                    <input type="number" min="0" step="0.01" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} required />
-                  </div>
-                  <div className="field">
-                    <label>Method</label>
-                    <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
-                      <option>Cash</option>
-                      <option>Check</option>
-                      <option>Card processed elsewhere</option>
-                      <option>Zelle</option>
-                      <option>Venmo</option>
-                      <option>Cash App</option>
-                      <option>Bank transfer</option>
-                      <option>Financing</option>
-                      <option>Other</option>
-                    </select>
+                    <input type="number" min="0" step="0.01" value={supplementAmount} onChange={(e) => setSupplementAmount(e.target.value)} />
                   </div>
                   <button className="btn" type="submit">
-                    Record Payment
+                    Create Change Order
                   </button>
                 </form>
+              </CollapsibleCard>
+
+              <CollapsibleCard title="Invoice">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    run(async () => {
+                      const res = await fetch(
+                        `${apiBaseUrl}/jobs/${latestJob.id}/invoice?total_due=${encodeURIComponent(invoiceTotal)}`,
+                        { method: 'POST' }
+                      )
+                      if (!res.ok) throw new Error(await res.text())
+                      setInvoiceTotal('')
+                    }, 'Invoice created.')
+                  }}
+                >
+                  <div className="field">
+                    <label>Total Due</label>
+                    <input type="number" min="0" step="0.01" value={invoiceTotal} onChange={(e) => setInvoiceTotal(e.target.value)} required />
+                  </div>
+                  <button className="btn" type="submit">
+                    Create Invoice
+                  </button>
+                </form>
+              </CollapsibleCard>
+
+              {latestInvoice && (
+                <CollapsibleCard title="Record Payment">
+                  <p className="muted">Invoice #{latestInvoice.id}: {latestInvoice.status}, balance {money(latestInvoice.balance_due)}</p>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault()
+                      run(async () => {
+                        const res = await fetch(`${apiBaseUrl}/invoices/${latestInvoice.id}/payments`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ amount: Number(paymentAmount), method: paymentMethod, note: 'Recorded in admin portal' }),
+                        })
+                        if (!res.ok) throw new Error(await res.text())
+                        setPaymentAmount('')
+                      }, 'Payment recorded.')
+                    }}
+                  >
+                    <div className="field">
+                      <label>Amount</label>
+                      <input type="number" min="0" step="0.01" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} required />
+                    </div>
+                    <div className="field">
+                      <label>Method</label>
+                      <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+                        <option>Cash</option>
+                        <option>Check</option>
+                        <option>Card processed elsewhere</option>
+                        <option>Zelle</option>
+                        <option>Venmo</option>
+                        <option>Cash App</option>
+                        <option>Bank transfer</option>
+                        <option>Financing</option>
+                        <option>Other</option>
+                      </select>
+                    </div>
+                    <button className="btn" type="submit">
+                      Record Payment
+                    </button>
+                  </form>
+                </CollapsibleCard>
               )}
             </div>
           )}
 
           <div className="grid" style={{ marginTop: 18 }}>
-            <div className="card">
-              <h2>Supplements</h2>
+            <CollapsibleCard title="Supplements">
               {data.jobs.flatMap((job: any) => job.supplements).map((item: any) => (
                 <p className="muted" key={item.id}>
                   #{item.id} {item.status} - {item.reason} - {money(item.amount)}
                 </p>
               ))}
-            </div>
+            </CollapsibleCard>
 
-            <div className="card">
-              <h2>Messages</h2>
+            <CollapsibleCard title="Messages">
               {data.messages.map((item: any) => (
                 <p className="muted" key={item.id}>
                   <b>{item.sender_type}:</b> {item.body}
                 </p>
               ))}
-            </div>
+            </CollapsibleCard>
 
-            <div className="card">
-              <h2>Timeline</h2>
+            <CollapsibleCard title="Timeline">
               {data.timeline.map((item: any, index: number) => (
                 <p className="muted" key={`${item.event}-${index}`}>
                   <b>{item.event}</b> - {item.actor}
@@ -493,7 +526,7 @@ export default function QuoteDetail() {
                   {new Date(item.created_at).toLocaleString()} {item.detail || ''}
                 </p>
               ))}
-            </div>
+            </CollapsibleCard>
           </div>
         </>
       )}
