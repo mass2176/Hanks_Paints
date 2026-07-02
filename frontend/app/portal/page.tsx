@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import MediaPicker, { validateMediaFiles } from '../../components/MediaPicker'
 import { apiBaseUrl } from '../../lib/config'
+import { copyEstimateLink, printEstimate, shareEstimate } from '../../lib/estimateShare'
 
 function money(value: number) {
   return `$${Number(value || 0).toFixed(2)}`
@@ -137,6 +138,35 @@ export default function Page() {
       setTypedLegalName('')
       setApprovalAcknowledged(false)
     }, 'Final estimate approved.')
+  }
+
+  async function shareEstimateAction(estimate: any) {
+    setError('')
+    setNotice('')
+
+    try {
+      const message = await shareEstimate({
+        quoteId: data.quote.id,
+        estimateType: estimate.estimate_type,
+        total: estimate.total,
+      })
+      setNotice(message)
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        setError(err.message)
+      }
+    }
+  }
+
+  async function copyEstimateAction() {
+    setError('')
+    setNotice('')
+
+    try {
+      setNotice(await copyEstimateLink(data.quote.id))
+    } catch (err: any) {
+      setError(err.message)
+    }
   }
 
   const finalEstimate = data?.estimates?.find(
@@ -300,6 +330,17 @@ export default function Page() {
                       {item.description}: {money(item.amount)}
                     </p>
                   ))}
+                  <div className="btns">
+                    <button className="btn secondary" type="button" onClick={() => shareEstimateAction(estimate)}>
+                      Share Estimate
+                    </button>
+                    <button className="btn secondary" type="button" onClick={printEstimate}>
+                      Print Estimate
+                    </button>
+                    <button className="btn secondary" type="button" onClick={copyEstimateAction}>
+                      Copy Link
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

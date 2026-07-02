@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useParams } from 'next/navigation'
 import { apiBaseUrl } from '../../../../lib/config'
+import { copyEstimateLink, printEstimate, shareEstimate } from '../../../../lib/estimateShare'
 
 function money(value: number) {
   return `$${Number(value || 0).toFixed(2)}`
@@ -243,6 +244,35 @@ export default function QuoteDetail() {
     )
   }
 
+  async function shareEstimateAction(estimate: any) {
+    setError('')
+    setNotice('')
+
+    try {
+      const message = await shareEstimate({
+        quoteId: id,
+        estimateType: estimate.estimate_type,
+        total: estimate.total,
+      })
+      setNotice(message)
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        setError(err.message)
+      }
+    }
+  }
+
+  async function copyEstimateAction() {
+    setError('')
+    setNotice('')
+
+    try {
+      setNotice(await copyEstimateLink(id))
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
   return (
     <main className="section">
       <h1>Quote #{id}</h1>
@@ -395,9 +425,20 @@ export default function QuoteDetail() {
                 {existingEstimate.internal_notes && (
                   <p className="muted">Internal Notes: {existingEstimate.internal_notes}</p>
                 )}
-                <button className="btn secondary" type="button" onClick={() => editEstimate(existingEstimate)}>
-                  Edit Estimate
-                </button>
+                <div className="btns">
+                  <button className="btn secondary" type="button" onClick={() => shareEstimateAction(existingEstimate)}>
+                    Share Estimate
+                  </button>
+                  <button className="btn secondary" type="button" onClick={printEstimate}>
+                    Print Estimate
+                  </button>
+                  <button className="btn secondary" type="button" onClick={copyEstimateAction}>
+                    Copy Link
+                  </button>
+                  <button className="btn secondary" type="button" onClick={() => editEstimate(existingEstimate)}>
+                    Edit Estimate
+                  </button>
+                </div>
               </CollapsibleCard>
             )}
 
