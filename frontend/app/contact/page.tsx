@@ -28,6 +28,19 @@ export default function Page() {
         </div>
 
         <div className="card">
+          <h3>Text / Office</h3>
+          <p className="muted">For direct questions, text or call the shop.</p>
+          <p>
+            <a href="tel:17652727998">
+              <b>765-272-7998</b>
+            </a>
+          </p>
+          <p>
+            <a href="mailto:henry@hanks-paints.com">henry@hanks-paints.com</a>
+          </p>
+        </div>
+
+        <div className="card">
           <h3>Existing Quote / Job</h3>
           <p className="muted">
             Check status, send a message, upload additional media, request an inspection, and review
