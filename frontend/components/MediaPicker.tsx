@@ -1,5 +1,7 @@
 'use client'
 
+import { useRef } from 'react'
+
 const MAX_PHOTOS = 10
 const MAX_VIDEOS = 1
 const MAX_VIDEO_SIZE_BYTES = 50 * 1024 * 1024
@@ -49,6 +51,7 @@ export function validateMediaFiles(files: File[]) {
 }
 
 export default function MediaPicker({ files, onChange, required = false }: MediaPickerProps) {
+  const inputRef = useRef<HTMLInputElement>(null)
   const error = validateMediaFiles(files)
   const photos = files.filter(isPhoto).length
   const videos = files.filter(isVideo).length
@@ -67,10 +70,15 @@ export default function MediaPicker({ files, onChange, required = false }: Media
       <div className="upload-grid">
         <div className="upload-card">
           <span>Choose from device</span>
+          <button className="btn secondary" type="button" onClick={() => inputRef.current?.click()}>
+            Upload Photos / Videos
+          </button>
           <input
+            ref={inputRef}
             type="file"
             accept="image/*,video/*"
             multiple
+            style={{ display: 'none' }}
             onChange={(event) => {
               addFiles(event.currentTarget.files)
               event.currentTarget.value = ''
