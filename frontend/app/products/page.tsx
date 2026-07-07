@@ -11,10 +11,11 @@ export default function Page() {
       <div className="grid" style={{ marginTop: 28 }}>
         {products.map((product) => (
           <div className="card product-card" key={product.slug}>
-            <div className="product-art" aria-label={`${product.name} product image placeholder`}>
-              <span>{product.name}</span>
-            </div>
+            <img className="product-photo" src={product.imageUrl} alt={product.name} />
             <h3>{product.name}</h3>
+            <p>
+              <b>{product.price}</b> - {product.size} - {product.fulfillment}
+            </p>
             <p>{product.summary}</p>
             <p className="muted">{product.details}</p>
             {product.checkoutUrl ? (
