@@ -308,8 +308,7 @@ export default function Estimate() {
             <label>Vehicle Photos / Videos *</label>
             <MediaPicker files={mediaFiles} onChange={setMediaFiles} required />
             <p className="muted">
-              On a phone or tablet, you can take a new damage photo or choose existing photos and
-              videos from your camera roll. On a computer, choose files from your device.
+              Choose existing photos and videos from your phone, tablet, or computer.
             </p>
           </div>
 

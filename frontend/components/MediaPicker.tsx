@@ -66,19 +66,7 @@ export default function MediaPicker({ files, onChange, required = false }: Media
     <>
       <div className="upload-grid">
         <div className="upload-card">
-          <span>Take Photo Now</span>
-          <input
-            type="file"
-            accept="image/*"
-            capture="environment"
-            onChange={(event) => {
-              addFiles(event.currentTarget.files)
-              event.currentTarget.value = ''
-            }}
-          />
-        </div>
-        <div className="upload-card">
-          <span>Choose From Device</span>
+          <span>Choose from device</span>
           <input
             type="file"
             accept="image/*,video/*"
