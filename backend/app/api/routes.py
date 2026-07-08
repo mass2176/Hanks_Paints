@@ -3,6 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
+import stripe
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.domain import (
@@ -10,7 +11,7 @@ from app.models.domain import (
     Invoice, Job, JobStatus, MediaFile, Message, Payment, QuoteRequest, QuoteStatus,
     Supplement, Vehicle, Visibility
 )
-from app.schemas.quote import AppointmentRequestIn, EstimateApprovalIn, EstimateCreate, InspectionCompleteIn, MessageIn, PaymentIn, QuoteCreate, QuoteOut
+from app.schemas.quote import AppointmentRequestIn, EstimateApprovalIn, EstimateCreate, InspectionCompleteIn, MessageIn, PaymentIn, ProductCheckoutIn, QuoteCreate, QuoteOut
 from app.services.activity import log_activity
 from app.services.notifications import send_customer_notification
 
@@ -20,6 +21,30 @@ FINAL_ESTIMATE_AUTHORIZATION_TEXT = (
     "I approve this final estimate and authorize Hanks Paints to begin the listed repairs. "
     "I understand hidden damage may require a separate supplement or change order approval."
 )
+
+STORE_PRODUCTS = {
+    "detail-spray": {
+        "name": "Hank's Detail Spray",
+        "description": "16 oz detail spray. Shipping only.",
+        "unit_amount": 1200,
+        "image_url": "/images/products/detail-spray.png",
+    },
+    "interior-spray": {
+        "name": "Hank's Interior Spray",
+        "description": "16 oz interior cleaner. Shipping only.",
+        "unit_amount": 1200,
+        "image_url": "/images/products/interior-cleaner.png",
+    },
+    "glass-cleaner": {
+        "name": "Hank's Glass Cleaner",
+        "description": "16 oz glass cleaner. Shipping only.",
+        "unit_amount": 1200,
+        "image_url": "/images/products/glass-cleaner.png",
+    },
+}
+
+def frontend_origin(request: Request):
+    return (request.headers.get("origin") or settings.public_base_url).rstrip("/")
 
 def quote_snapshot(db: Session, quote_id: int, *, public: bool = False):
     quote = db.get(QuoteRequest, quote_id)
@@ -192,6 +217,50 @@ def quote_snapshot(db: Session, quote_id: int, *, public: bool = False):
             for item in activities
         ],
     }
+
+@router.post("/products/checkout")
+def create_product_checkout(payload: ProductCheckoutIn, request: Request):
+    product = STORE_PRODUCTS.get(payload.product_slug)
+    if not product:
+        raise HTTPException(404, "Product not found")
+    if payload.quantity < 1 or payload.quantity > 10:
+        raise HTTPException(400, "Quantity must be between 1 and 10")
+    if not settings.stripe_secret_key:
+        raise HTTPException(503, "Stripe checkout is not configured")
+
+    origin = frontend_origin(request)
+    stripe.api_key = settings.stripe_secret_key
+
+    try:
+        session = stripe.checkout.Session.create(
+            mode="payment",
+            line_items=[
+                {
+                    "price_data": {
+                        "currency": "usd",
+                        "unit_amount": product["unit_amount"],
+                        "product_data": {
+                            "name": product["name"],
+                            "description": product["description"],
+                            "images": [f"{origin}{product['image_url']}"],
+                        },
+                    },
+                    "quantity": payload.quantity,
+                }
+            ],
+            phone_number_collection={"enabled": True},
+            shipping_address_collection={"allowed_countries": ["US"]},
+            success_url=f"{origin}/products/success?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{origin}/products",
+            metadata={
+                "product_slug": payload.product_slug,
+                "product_name": product["name"],
+            },
+        )
+    except stripe.StripeError as exc:
+        raise HTTPException(502, str(exc)) from exc
+
+    return {"checkout_url": session.url, "session_id": session.id}
 
 @router.post("/quotes", response_model=QuoteOut)
 def create_quote(payload: QuoteCreate, db: Session = Depends(get_db)):

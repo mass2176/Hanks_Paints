@@ -71,3 +71,7 @@ class PaymentIn(BaseModel):
     amount: float
     method: str
     note: str | None = None
+
+class ProductCheckoutIn(BaseModel):
+    product_slug: str
+    quantity: int = 1

@@ -1,4 +1,5 @@
 import { products } from '../../lib/products'
+import ProductCheckoutButton from '../../components/ProductCheckoutButton'
 
 export default function Page() {
   return (
@@ -18,18 +19,7 @@ export default function Page() {
             </p>
             <p>{product.summary}</p>
             <p className="muted">{product.details}</p>
-            {product.checkoutUrl ? (
-              <a className="btn" href={product.checkoutUrl}>
-                Buy Now
-              </a>
-            ) : (
-              <>
-                <a className="btn secondary" href="/contact">
-                  Contact to Buy
-                </a>
-                <p className="muted">Online checkout will be available after Stripe links are added.</p>
-              </>
-            )}
+            <ProductCheckoutButton productSlug={product.slug} />
           </div>
         ))}
       </div>

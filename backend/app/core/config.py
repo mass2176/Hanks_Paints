@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     email_enabled: bool = False
     access_code_expire_minutes: int = 10
     customer_session_days: int = 7
+    stripe_secret_key: str | None = None
 
     class Config:
         env_file = ".env"
