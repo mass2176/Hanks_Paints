@@ -43,6 +43,12 @@ STORE_PRODUCTS = {
     },
 }
 
+FLAT_RATE_SHIPPING = {
+    "display_name": "Flat-rate shipping",
+    "fixed_amount": {"amount": 695, "currency": "usd"},
+    "type": "fixed_amount",
+}
+
 def frontend_origin(request: Request):
     return (request.headers.get("origin") or settings.public_base_url).rstrip("/")
 
@@ -250,6 +256,7 @@ def create_product_checkout(payload: ProductCheckoutIn, request: Request):
             ],
             phone_number_collection={"enabled": True},
             shipping_address_collection={"allowed_countries": ["US"]},
+            shipping_options=[{"shipping_rate_data": FLAT_RATE_SHIPPING}],
             success_url=f"{origin}/products/success?session_id={{CHECKOUT_SESSION_ID}}",
             cancel_url=f"{origin}/products",
             metadata={
