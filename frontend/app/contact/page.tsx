@@ -31,8 +31,8 @@ export default function Page() {
           <h3>Text / Office</h3>
           <p className="muted">For direct questions, text or call the shop.</p>
           <p>
-            <a href="tel:17652727998">
-              <b>765-272-7998</b>
+            <a href="tel:17652527998">
+              <b>(765) 252-7998</b>
             </a>
           </p>
           <p>
