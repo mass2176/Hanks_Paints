@@ -84,31 +84,31 @@ export default function MediaPicker({ files, onChange, required = false }: Media
               event.currentTarget.value = ''
             }}
           />
+
+          <p className="muted">
+            Add up to {MAX_PHOTOS} photos and {MAX_VIDEOS} short video. Selected: {photos} photo
+            {photos === 1 ? '' : 's'}, {videos} video{videos === 1 ? '' : 's'}.
+          </p>
+
+          {required && !files.length && <p className="muted">At least one vehicle photo is required.</p>}
+          {error && <p className="upload-error">{error}</p>}
+
+          {files.length > 0 && (
+            <div className="file-list">
+              {files.map((file, index) => (
+                <div className="file-row" key={`${file.name}-${file.size}-${file.lastModified}-${index}`}>
+                  <span>
+                    {file.name} <small>{formatSize(file.size)}</small>
+                  </span>
+                  <button type="button" className="remove-file" onClick={() => removeFile(index)}>
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
-
-      <p className="muted">
-        Add up to {MAX_PHOTOS} photos and {MAX_VIDEOS} short video. Selected: {photos} photo
-        {photos === 1 ? '' : 's'}, {videos} video{videos === 1 ? '' : 's'}.
-      </p>
-
-      {required && !files.length && <p className="muted">At least one vehicle photo is required.</p>}
-      {error && <p className="upload-error">{error}</p>}
-
-      {files.length > 0 && (
-        <div className="file-list">
-          {files.map((file, index) => (
-            <div className="file-row" key={`${file.name}-${file.size}-${file.lastModified}-${index}`}>
-              <span>
-                {file.name} <small>{formatSize(file.size)}</small>
-              </span>
-              <button type="button" className="remove-file" onClick={() => removeFile(index)}>
-                Remove
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
     </>
   )
 }
