@@ -28,6 +28,7 @@ class QuoteCreate(BaseModel):
     insurance_company: str | None = None
     claim_number: str | None = None
     damage_description: str
+    sms_consent: bool = False
 
 class QuoteOut(BaseModel):
     id: int

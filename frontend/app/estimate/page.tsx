@@ -77,6 +77,7 @@ export default function Estimate() {
         insurance_company: f.get('insurance_company') ? String(f.get('insurance_company')) : null,
         claim_number: f.get('claim_number') ? String(f.get('claim_number')) : null,
         damage_description: String(f.get('damage_description') || ''),
+        sms_consent: f.get('sms_consent') === 'on',
       }
 
       const res = await fetch(`${apiBaseUrl}/quotes`, {
@@ -216,6 +217,27 @@ export default function Estimate() {
               <label>Email *</label>
               <input name="email" type="email" required />
             </div>
+          </div>
+
+          <div className="card">
+            <label>
+              <input name="sms_consent" type="checkbox" /> I agree to receive service-related text
+              messages from Hanks Paints about my estimate request, quote review, inspection
+              scheduling, customer messages, approvals, repair status updates, invoices, pickup
+              reminders, and payment reminders.
+            </label>
+            <p className="muted">
+              Message frequency varies. Message and data rates may apply. Reply STOP to opt out.
+              Reply HELP for help. Consent is not required to purchase goods or services. View our{' '}
+              <a href="/privacy" target="_blank">
+                Privacy Policy
+              </a>{' '}
+              and{' '}
+              <a href="/terms" target="_blank">
+                Terms
+              </a>
+              .
+            </p>
           </div>
 
           <h2>Vehicle</h2>

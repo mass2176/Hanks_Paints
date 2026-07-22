@@ -55,6 +55,11 @@ export default function Page() {
             Reply HELP for help. Consent to receive SMS messages is not required to purchase goods
             or services from Hanks Paints.
           </p>
+          <p className="muted">
+            Carriers are not liable for delayed or undelivered messages. View the Hanks Paints{' '}
+            <a href="/privacy">Privacy Policy</a> for information about how customer and SMS consent
+            data is handled.
+          </p>
         </div>
 
         <div className="card">

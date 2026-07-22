@@ -287,6 +287,8 @@ def create_quote(payload: QuoteCreate, db: Session = Depends(get_db)):
     )
     db.add(quote); db.commit(); db.refresh(quote)
     log_activity(db, quote_id=quote.id, event="Quote request submitted", actor="customer")
+    if payload.sms_consent:
+        log_activity(db, quote_id=quote.id, event="SMS consent captured", actor="customer", detail="Estimate request form opt-in")
     log_activity(db, quote_id=quote.id, event="Request received", actor="system")
     return quote
 

@@ -55,6 +55,10 @@ export default function Page() {
             used only for customer service, transactional communication, and repair-related
             notifications connected to Hanks Paints.
           </p>
+          <p className="muted">
+            All the above categories exclude text messaging originator opt-in data and consent; this
+            information will not be shared with any third parties.
+          </p>
         </div>
 
         <div className="card">
