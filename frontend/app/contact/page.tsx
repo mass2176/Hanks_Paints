@@ -50,6 +50,21 @@ export default function Page() {
             Open Portal
           </a>
         </div>
+
+        <div className="card">
+          <h3>Policies</h3>
+          <p className="muted">
+            Review Hanks Paints privacy, SMS messaging, and website terms.
+          </p>
+          <div className="btns">
+            <a className="btn secondary" href="/privacy">
+              Privacy Policy
+            </a>
+            <a className="btn secondary" href="/terms">
+              Terms
+            </a>
+          </div>
+        </div>
       </div>
     </main>
   )
