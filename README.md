@@ -23,6 +23,30 @@ Database-backed starter application for Hanks Paints.
 - Media upload endpoint with customer-visible/internal-only flag
 - Invoice and manual payment tracking endpoints
 - Activity timeline
+- Twilio-backed shop owner SMS alert when a new estimate request is submitted
+
+## Backend SMS notification settings
+
+Set these environment variables on the deployed backend to enable shop-owner SMS alerts:
+
+```text
+SMS_NOTIFICATIONS_ENABLED=true
+SHOP_NOTIFICATION_PHONE=+17652724378
+TWILIO_ACCOUNT_SID=AC...
+TWILIO_API_KEY=SK...
+TWILIO_API_SECRET=...
+TWILIO_MESSAGING_SERVICE_SID=MG...
+```
+
+If you prefer sending from a specific Twilio number instead of a Messaging Service, use:
+
+```text
+TWILIO_FROM_PHONE=+1...
+```
+
+The backend sends the first MVP alert only to the shop notification phone when a customer creates a
+new estimate request. Customer-facing SMS remains intentionally disabled until that workflow is
+expanded.
 
 ## Quick local backend run without Docker
 
@@ -77,7 +101,7 @@ http://localhost:8000/docs
 This is a functional starter, not a finished production system. Next development steps:
 
 1. Add real customer passwordless login/session handling.
-2. Add real SMS/email provider integration, such as Twilio/SendGrid.
+2. Expand SMS/email provider integration for customer-facing notifications.
 3. Add production authentication for employees/admins.
 4. Add appointment availability settings UI.
 5. Add file upload UI to the quote form.

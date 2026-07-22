@@ -13,7 +13,7 @@ from app.models.domain import (
 )
 from app.schemas.quote import AppointmentRequestIn, EstimateApprovalIn, EstimateCreate, InspectionCompleteIn, MessageIn, PaymentIn, ProductCheckoutIn, QuoteCreate, QuoteOut
 from app.services.activity import log_activity
-from app.services.notifications import send_customer_notification
+from app.services.notifications import send_customer_notification, send_shop_new_quote_notification
 
 router = APIRouter()
 
@@ -290,6 +290,12 @@ def create_quote(payload: QuoteCreate, db: Session = Depends(get_db)):
     if payload.sms_consent:
         log_activity(db, quote_id=quote.id, event="SMS consent captured", actor="customer", detail="Estimate request form opt-in")
     log_activity(db, quote_id=quote.id, event="Request received", actor="system")
+    if send_shop_new_quote_notification(
+        quote_id=quote.id,
+        customer_name=customer.full_name,
+        service_type=quote.service_type,
+    ):
+        log_activity(db, quote_id=quote.id, event="Shop owner SMS notification sent", actor="system", detail=settings.shop_notification_phone)
     return quote
 
 @router.get("/quotes/{quote_id}")
