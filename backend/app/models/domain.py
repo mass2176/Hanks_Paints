@@ -38,6 +38,10 @@ class Visibility(str, enum.Enum):
     customer_visible = "customer_visible"
     internal_only = "internal_only"
 
+class ShopUserRole(str, enum.Enum):
+    admin = "admin"
+    employee = "employee"
+
 class Customer(Base):
     __tablename__ = "customers"
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -188,4 +192,14 @@ class Activity(Base):
     actor: Mapped[str] = mapped_column(String(100), default="system")
     event: Mapped[str] = mapped_column(String(255))
     detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+class ShopUser(Base):
+    __tablename__ = "shop_users"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    full_name: Mapped[str] = mapped_column(String(200))
+    role: Mapped[ShopUserRole] = mapped_column(Enum(ShopUserRole), default=ShopUserRole.employee)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

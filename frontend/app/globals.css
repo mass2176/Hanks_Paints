@@ -195,6 +195,25 @@ a {
   gap: 14px;
 }
 
+.user-list {
+  display: grid;
+  gap: 10px;
+}
+
+.user-row {
+  align-items: center;
+  background: #0b111a;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 14px;
+}
+
+.user-row p {
+  margin: 0;
+}
+
 .upload-grid {
   display: block;
 }

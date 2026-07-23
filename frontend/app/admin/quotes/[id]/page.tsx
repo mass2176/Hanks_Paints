@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { useParams } from 'next/navigation'
 import { apiBaseUrl } from '../../../../lib/config'
 import { copyEstimateLink, printEstimate, shareEstimate } from '../../../../lib/estimateShare'
+import { loadCurrentShopUser, shopFetch, type ShopUser } from '../../../../lib/shopAuth'
 
 function money(value: number) {
   return `$${Number(value || 0).toFixed(2)}`
@@ -56,6 +57,8 @@ function CollapsibleCard({
 export default function QuoteDetail() {
   const params = useParams()
   const id = params.id as string
+  const [user, setUser] = useState<ShopUser | null>(null)
+  const [authChecked, setAuthChecked] = useState(false)
   const [data, setData] = useState<any>(null)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
@@ -74,7 +77,7 @@ export default function QuoteDetail() {
   const [paymentMethod, setPaymentMethod] = useState('Cash')
 
   async function load() {
-    const res = await fetch(`${apiBaseUrl}/quotes/${id}`)
+    const res = await shopFetch(`/quotes/${id}`)
     const body = await res.json()
     if (!res.ok) throw new Error(body.detail || 'Quote load failed')
     setData(body)
@@ -103,7 +106,7 @@ export default function QuoteDetail() {
     setNotice('')
 
     try {
-      const res = await fetch(`${apiBaseUrl}/quotes/${id}`, { method: 'DELETE' })
+      const res = await shopFetch(`/quotes/${id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error(await res.text())
       window.location.href = '/admin'
     } catch (err: any) {
@@ -113,7 +116,13 @@ export default function QuoteDetail() {
 
   useEffect(() => {
     if (id) {
-      load().catch((err) => setError(err.message))
+      loadCurrentShopUser()
+        .then((currentUser) => {
+          setUser(currentUser)
+          return load()
+        })
+        .catch((err) => setError(err.message))
+        .finally(() => setAuthChecked(true))
     }
   }, [id])
 
@@ -151,7 +160,7 @@ export default function QuoteDetail() {
   async function runWorkflowAction() {
     if (quoteStatus === 'Request Received') {
       await run(async () => {
-        const res = await fetch(`${apiBaseUrl}/quotes/${id}/start-quotation`, { method: 'POST' })
+        const res = await shopFetch(`/quotes/${id}/start-quotation`, { method: 'POST' })
         if (!res.ok) throw new Error(await res.text())
       }, 'Review started.')
       return
@@ -162,7 +171,7 @@ export default function QuoteDetail() {
       if (!confirmed) return
 
       await run(async () => {
-        const res = await fetch(`${apiBaseUrl}/quotes/${id}/reopen-quotation`, { method: 'POST' })
+        const res = await shopFetch(`/quotes/${id}/reopen-quotation`, { method: 'POST' })
         if (!res.ok) throw new Error(await res.text())
       }, 'Quotation reopened.')
       return
@@ -170,7 +179,7 @@ export default function QuoteDetail() {
 
     if (quoteApproved) {
       await run(async () => {
-        const res = await fetch(`${apiBaseUrl}/quotes/${id}/convert-to-job`, { method: 'POST' })
+        const res = await shopFetch(`/quotes/${id}/convert-to-job`, { method: 'POST' })
         if (!res.ok) throw new Error(await res.text())
       }, 'Quote converted to active job.')
       return
@@ -178,7 +187,7 @@ export default function QuoteDetail() {
 
     if (existingEstimate) {
       await run(async () => {
-        const res = await fetch(`${apiBaseUrl}/quotes/${id}/quotation-complete`, { method: 'POST' })
+        const res = await shopFetch(`/quotes/${id}/quotation-complete`, { method: 'POST' })
         if (!res.ok) throw new Error(await res.text())
       }, 'Quotation marked complete.')
     }
@@ -198,7 +207,7 @@ export default function QuoteDetail() {
     }
 
     await run(async () => {
-      const res = await fetch(`${apiBaseUrl}/quotes/${id}/inspection-complete`, {
+      const res = await shopFetch(`/quotes/${id}/inspection-complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ notes: trimmedNotes }),
@@ -278,8 +287,18 @@ export default function QuoteDetail() {
       <h1>Quote #{id}</h1>
       {error && <p className="muted">Error: {error}</p>}
       {notice && <p className="muted">{notice}</p>}
+      {!authChecked && <p className="muted">Checking shop login...</p>}
+      {authChecked && !user && (
+        <div className="card">
+          <h2>Shop Login Required</h2>
+          <p className="muted">Log in before opening shop quote records.</p>
+          <a className="btn" href="/admin">
+            Go to Shop Login
+          </a>
+        </div>
+      )}
 
-      {data && (
+      {user && data && (
         <>
           <div className="grid">
             <div className="card">
@@ -328,13 +347,15 @@ export default function QuoteDetail() {
               </div>
             </CollapsibleCard>
 
-            <CollapsibleCard title="Admin Actions">
-              <div className="btns">
-                <button className="btn danger" type="button" onClick={deleteQuote}>
-                  Delete Quote
-                </button>
-              </div>
-            </CollapsibleCard>
+            {user.role === 'admin' && (
+              <CollapsibleCard title="Admin Actions">
+                <div className="btns">
+                  <button className="btn danger" type="button" onClick={deleteQuote}>
+                    Delete Quote
+                  </button>
+                </div>
+              </CollapsibleCard>
+            )}
           </div>
 
           <div className="grid" style={{ marginTop: 18 }}>
@@ -345,9 +366,9 @@ export default function QuoteDetail() {
                     e.preventDefault()
                     run(async () => {
                       const endpoint = editingEstimateId
-                        ? `${apiBaseUrl}/estimates/${editingEstimateId}`
-                        : `${apiBaseUrl}/quotes/${id}/estimates`
-                      const res = await fetch(endpoint, {
+                        ? `/estimates/${editingEstimateId}`
+                        : `/quotes/${id}/estimates`
+                      const res = await shopFetch(endpoint, {
                         method: editingEstimateId ? 'PUT' : 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -451,8 +472,8 @@ export default function QuoteDetail() {
                     for (const file of Array.from(files)) {
                       const body = new FormData()
                       body.append('file', file)
-                      const res = await fetch(
-                        `${apiBaseUrl}/quotes/${id}/media?visibility=${mediaVisibility}&uploaded_by=employee`,
+                      const res = await shopFetch(
+                        `/quotes/${id}/media?visibility=${mediaVisibility}&uploaded_by=employee`,
                         { method: 'POST', body }
                       )
                       if (!res.ok) throw new Error(await res.text())
@@ -482,7 +503,7 @@ export default function QuoteDetail() {
                 onSubmit={(e) => {
                   e.preventDefault()
                   run(async () => {
-                    const res = await fetch(`${apiBaseUrl}/quotes/${id}/messages`, {
+                    const res = await shopFetch(`/quotes/${id}/shop-messages`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ sender_type: 'shop', body: shopMessage }),
@@ -509,13 +530,13 @@ export default function QuoteDetail() {
                   #{item.id} {item.status} - {new Date(item.requested_start).toLocaleString()}
                   {item.status !== 'Appointment Confirmed' && (
                     <button
-                      className="btn secondary"
-                      style={{ marginLeft: 12 }}
-                      onClick={() =>
-                        run(async () => {
-                          const res = await fetch(`${apiBaseUrl}/appointments/${item.id}/confirm`, { method: 'POST' })
-                          if (!res.ok) throw new Error(await res.text())
-                        }, 'Appointment confirmed.')
+                          className="btn secondary"
+                          style={{ marginLeft: 12 }}
+                          onClick={() =>
+                            run(async () => {
+                              const res = await shopFetch(`/appointments/${item.id}/confirm`, { method: 'POST' })
+                              if (!res.ok) throw new Error(await res.text())
+                            }, 'Appointment confirmed.')
                       }
                     >
                       Confirm
@@ -545,8 +566,8 @@ export default function QuoteDetail() {
                   onSubmit={(e) => {
                     e.preventDefault()
                     run(async () => {
-                      const res = await fetch(
-                        `${apiBaseUrl}/jobs/${latestJob.id}/supplements?reason=${encodeURIComponent(supplementReason)}&amount=${encodeURIComponent(supplementAmount || '0')}`,
+                      const res = await shopFetch(
+                        `/jobs/${latestJob.id}/supplements?reason=${encodeURIComponent(supplementReason)}&amount=${encodeURIComponent(supplementAmount || '0')}`,
                         { method: 'POST' }
                       )
                       if (!res.ok) throw new Error(await res.text())
@@ -574,8 +595,8 @@ export default function QuoteDetail() {
                   onSubmit={(e) => {
                     e.preventDefault()
                     run(async () => {
-                      const res = await fetch(
-                        `${apiBaseUrl}/jobs/${latestJob.id}/invoice?total_due=${encodeURIComponent(invoiceTotal)}`,
+                      const res = await shopFetch(
+                        `/jobs/${latestJob.id}/invoice?total_due=${encodeURIComponent(invoiceTotal)}`,
                         { method: 'POST' }
                       )
                       if (!res.ok) throw new Error(await res.text())
@@ -598,9 +619,9 @@ export default function QuoteDetail() {
                   <p className="muted">Invoice #{latestInvoice.id}: {latestInvoice.status}, balance {money(latestInvoice.balance_due)}</p>
                   <form
                     onSubmit={(e) => {
-                      e.preventDefault()
-                      run(async () => {
-                        const res = await fetch(`${apiBaseUrl}/invoices/${latestInvoice.id}/payments`, {
+                    e.preventDefault()
+                    run(async () => {
+                        const res = await shopFetch(`/invoices/${latestInvoice.id}/payments`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ amount: Number(paymentAmount), method: paymentMethod, note: 'Recorded in admin portal' }),

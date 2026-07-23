@@ -9,10 +9,11 @@ from app.db.session import get_db
 from app.models.domain import (
     Activity, Appointment, AppointmentStatus, Customer, Estimate, EstimateApproval, EstimateLineItem,
     Invoice, Job, JobStatus, MediaFile, Message, Payment, QuoteRequest, QuoteStatus,
-    Supplement, Vehicle, Visibility
+    ShopUser, ShopUserRole, Supplement, Vehicle, Visibility
 )
-from app.schemas.quote import AppointmentRequestIn, EstimateApprovalIn, EstimateCreate, InspectionCompleteIn, MessageIn, PaymentIn, ProductCheckoutIn, QuoteCreate, QuoteOut
+from app.schemas.quote import AppointmentRequestIn, EstimateApprovalIn, EstimateCreate, InspectionCompleteIn, MessageIn, PaymentIn, ProductCheckoutIn, QuoteCreate, QuoteOut, ShopLoginIn, ShopUserCreateIn
 from app.services.activity import log_activity
+from app.services.auth import create_access_token, get_current_shop_user, hash_password, public_user, require_admin, verify_password
 from app.services.notifications import send_customer_notification, send_shop_new_quote_notification
 
 router = APIRouter()
@@ -51,6 +52,48 @@ FLAT_RATE_SHIPPING = {
 
 def frontend_origin(request: Request):
     return (request.headers.get("origin") or settings.public_base_url).rstrip("/")
+
+@router.post("/auth/login")
+def shop_login(payload: ShopLoginIn, db: Session = Depends(get_db)):
+    user = db.query(ShopUser).filter(ShopUser.email == payload.email.lower()).first()
+    if not user or not user.active or not verify_password(payload.password, user.password_hash):
+        raise HTTPException(401, "Invalid email or password")
+
+    return {"access_token": create_access_token(user), "token_type": "bearer", "user": public_user(user)}
+
+@router.get("/auth/me")
+def shop_me(user: ShopUser = Depends(get_current_shop_user)):
+    return public_user(user)
+
+@router.get("/shop-users")
+def list_shop_users(db: Session = Depends(get_db), user: ShopUser = Depends(require_admin)):
+    users = db.query(ShopUser).order_by(ShopUser.created_at.asc()).all()
+    return [{**public_user(item), "active": item.active, "created_at": item.created_at} for item in users]
+
+@router.post("/shop-users")
+def create_shop_user(payload: ShopUserCreateIn, db: Session = Depends(get_db), user: ShopUser = Depends(require_admin)):
+    role_value = payload.role.lower()
+    if role_value not in {ShopUserRole.admin.value, ShopUserRole.employee.value}:
+        raise HTTPException(400, "Role must be admin or employee")
+    if len(payload.password) < 8:
+        raise HTTPException(400, "Password must be at least 8 characters")
+
+    email = payload.email.lower()
+    existing = db.query(ShopUser).filter(ShopUser.email == email).first()
+    if existing:
+        raise HTTPException(409, "A shop user with this email already exists")
+
+    new_user = ShopUser(
+        email=email,
+        full_name=payload.full_name.strip(),
+        role=ShopUserRole(role_value),
+        password_hash=hash_password(payload.password),
+        active=True,
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return public_user(new_user)
 
 def quote_snapshot(db: Session, quote_id: int, *, public: bool = False):
     quote = db.get(QuoteRequest, quote_id)
@@ -299,11 +342,11 @@ def create_quote(payload: QuoteCreate, db: Session = Depends(get_db)):
     return quote
 
 @router.get("/quotes/{quote_id}")
-def get_quote(quote_id: int, db: Session = Depends(get_db)):
+def get_quote(quote_id: int, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
     return quote_snapshot(db, quote_id)
 
 @router.delete("/quotes/{quote_id}")
-def delete_quote(quote_id: int, db: Session = Depends(get_db)):
+def delete_quote(quote_id: int, db: Session = Depends(get_db), user: ShopUser = Depends(require_admin)):
     quote = db.get(QuoteRequest, quote_id)
     if not quote:
         raise HTTPException(404, "Quote not found")
@@ -397,9 +440,21 @@ def verify_quote(quote_id: int, method: str = "phone", db: Session = Depends(get
     return {"ok": True, "status": quote.status.value}
 
 @router.post("/quotes/{quote_id}/media")
-def upload_media(quote_id: int, visibility: Visibility = Visibility.customer_visible, uploaded_by: str = "customer", file: UploadFile = File(...), db: Session = Depends(get_db)):
+def upload_media(
+    quote_id: int,
+    request: Request,
+    visibility: Visibility = Visibility.customer_visible,
+    uploaded_by: str = "customer",
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
     quote = db.get(QuoteRequest, quote_id)
     if not quote: raise HTTPException(404, "Quote not found")
+    if uploaded_by != "customer" or visibility == Visibility.internal_only:
+        token_header = request.headers.get("authorization") if request else ""
+        if not token_header.lower().startswith("bearer "):
+            raise HTTPException(401, "Shop login required")
+        get_current_shop_user(token_header.split(" ", 1)[1], db)
     os.makedirs(settings.media_root, exist_ok=True)
     ext = os.path.splitext(file.filename or "upload")[1]
     safe_name = f"quote_{quote_id}_{uuid.uuid4().hex}{ext}"
@@ -412,7 +467,7 @@ def upload_media(quote_id: int, visibility: Visibility = Visibility.customer_vis
     return {"id": media.id, "file_path": media.file_path, "visibility": media.visibility.value}
 
 @router.post("/quotes/{quote_id}/start-quotation")
-def start_quotation(quote_id: int, db: Session = Depends(get_db)):
+def start_quotation(quote_id: int, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
     quote = db.get(QuoteRequest, quote_id)
     if not quote: raise HTTPException(404, "Quote not found")
     quote.status = QuoteStatus.under_review
@@ -423,7 +478,7 @@ def start_quotation(quote_id: int, db: Session = Depends(get_db)):
     return {"status": quote.status.value}
 
 @router.post("/quotes/{quote_id}/quotation-complete")
-def complete_quotation(quote_id: int, db: Session = Depends(get_db)):
+def complete_quotation(quote_id: int, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
     quote = db.get(QuoteRequest, quote_id)
     if not quote:
         raise HTTPException(404, "Quote not found")
@@ -438,7 +493,7 @@ def complete_quotation(quote_id: int, db: Session = Depends(get_db)):
     return {"status": quote.status.value}
 
 @router.post("/quotes/{quote_id}/reopen-quotation")
-def reopen_quotation(quote_id: int, db: Session = Depends(get_db)):
+def reopen_quotation(quote_id: int, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
     quote = db.get(QuoteRequest, quote_id)
     if not quote:
         raise HTTPException(404, "Quote not found")
@@ -462,7 +517,7 @@ def request_appointment(quote_id: int, payload: AppointmentRequestIn, db: Sessio
     return {"id": appt.id, "status": appt.status.value}
 
 @router.post("/appointments/{appointment_id}/confirm")
-def confirm_appointment(appointment_id: int, confirmed_start: datetime | None = None, db: Session = Depends(get_db)):
+def confirm_appointment(appointment_id: int, confirmed_start: datetime | None = None, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
     appt = db.get(Appointment, appointment_id)
     if not appt: raise HTTPException(404, "Appointment not found")
     appt.confirmed_start = confirmed_start or appt.requested_start
@@ -474,7 +529,7 @@ def confirm_appointment(appointment_id: int, confirmed_start: datetime | None = 
     return {"status": appt.status.value}
 
 @router.post("/quotes/{quote_id}/inspection-complete")
-def mark_inspection_complete(quote_id: int, payload: InspectionCompleteIn, db: Session = Depends(get_db)):
+def mark_inspection_complete(quote_id: int, payload: InspectionCompleteIn, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
     quote = db.get(QuoteRequest, quote_id)
     if not quote: raise HTTPException(404, "Quote not found")
     if not payload.notes.strip():
@@ -492,7 +547,7 @@ def mark_inspection_complete(quote_id: int, payload: InspectionCompleteIn, db: S
     return {"status": quote.status.value}
 
 @router.post("/quotes/{quote_id}/estimates")
-def create_estimate(quote_id: int, payload: EstimateCreate, db: Session = Depends(get_db)):
+def create_estimate(quote_id: int, payload: EstimateCreate, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
     quote = db.get(QuoteRequest, quote_id)
     if not quote: raise HTTPException(404, "Quote not found")
     existing_estimate = db.query(Estimate).filter(Estimate.quote_id == quote_id).first()
@@ -511,7 +566,7 @@ def create_estimate(quote_id: int, payload: EstimateCreate, db: Session = Depend
     return {"id": est.id, "status": quote.status.value}
 
 @router.put("/estimates/{estimate_id}")
-def update_estimate(estimate_id: int, payload: EstimateCreate, db: Session = Depends(get_db)):
+def update_estimate(estimate_id: int, payload: EstimateCreate, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
     est = db.get(Estimate, estimate_id)
     if not est:
         raise HTTPException(404, "Estimate not found")
@@ -576,7 +631,7 @@ def approve_estimate(estimate_id: int, payload: EstimateApprovalIn, request: Req
     return {"approval_id": approval.id, "quote_status": quote.status.value}
 
 @router.post("/quotes/{quote_id}/convert-to-job")
-def convert_quote_to_job(quote_id: int, db: Session = Depends(get_db)):
+def convert_quote_to_job(quote_id: int, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
     quote = db.get(QuoteRequest, quote_id)
     if not quote:
         raise HTTPException(404, "Quote not found")
@@ -597,7 +652,7 @@ def convert_quote_to_job(quote_id: int, db: Session = Depends(get_db)):
     return {"job_id": job.id, "quote_status": quote.status.value}
 
 @router.post("/jobs/{job_id}/supplements")
-def create_supplement(job_id: int, reason: str, amount: float = 0, db: Session = Depends(get_db)):
+def create_supplement(job_id: int, reason: str, amount: float = 0, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
     job = db.get(Job, job_id)
     if not job: raise HTTPException(404, "Job not found")
     job.status = JobStatus.waiting_customer
@@ -619,13 +674,22 @@ def approve_supplement(supplement_id: int, typed_signature: str, db: Session = D
 
 @router.post("/quotes/{quote_id}/messages")
 def add_quote_message(quote_id: int, payload: MessageIn, db: Session = Depends(get_db)):
+    if payload.sender_type != "customer":
+        raise HTTPException(401, "Shop messages require the authenticated shop endpoint")
     msg = Message(quote_id=quote_id, sender_type=payload.sender_type, body=payload.body)
     db.add(msg); db.commit(); db.refresh(msg)
     log_activity(db, quote_id=quote_id, event="Message sent", actor=payload.sender_type)
     return {"id": msg.id}
 
+@router.post("/quotes/{quote_id}/shop-messages")
+def add_shop_quote_message(quote_id: int, payload: MessageIn, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
+    msg = Message(quote_id=quote_id, sender_type="shop", body=payload.body)
+    db.add(msg); db.commit(); db.refresh(msg)
+    log_activity(db, quote_id=quote_id, event="Message sent", actor=user.role.value)
+    return {"id": msg.id}
+
 @router.post("/jobs/{job_id}/invoice")
-def create_invoice(job_id: int, total_due: float, db: Session = Depends(get_db)):
+def create_invoice(job_id: int, total_due: float, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
     job = db.get(Job, job_id)
     if not job: raise HTTPException(404, "Job not found")
     inv = Invoice(job_id=job_id, total_due=total_due, status="draft")
@@ -634,7 +698,7 @@ def create_invoice(job_id: int, total_due: float, db: Session = Depends(get_db))
     return {"id": inv.id, "total_due": inv.total_due}
 
 @router.post("/invoices/{invoice_id}/payments")
-def record_payment(invoice_id: int, payload: PaymentIn, db: Session = Depends(get_db)):
+def record_payment(invoice_id: int, payload: PaymentIn, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
     inv = db.get(Invoice, invoice_id)
     if not inv: raise HTTPException(404, "Invoice not found")
     p = Payment(invoice_id=invoice_id, **payload.model_dump())
@@ -645,17 +709,17 @@ def record_payment(invoice_id: int, payload: PaymentIn, db: Session = Depends(ge
     return {"invoice_status": inv.status, "amount_paid": inv.amount_paid, "balance_due": max(inv.total_due - inv.amount_paid, 0)}
 
 @router.get("/dashboard")
-def dashboard(db: Session = Depends(get_db)):
+def dashboard(db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
     quotes = db.query(QuoteRequest).order_by(QuoteRequest.created_at.desc()).limit(50).all()
     return [{"id": q.id, "service_type": q.service_type, "payment_type": q.payment_type, "status": q.status.value, "created_at": q.created_at} for q in quotes]
 
 @router.get("/search")
-def search(q: str, db: Session = Depends(get_db)):
+def search(q: str, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
     customers = db.query(Customer).filter(or_(Customer.full_name.ilike(f"%{q}%"), Customer.phone.ilike(f"%{q}%"), Customer.email.ilike(f"%{q}%"))).limit(20).all()
     vehicles = db.query(Vehicle).filter(or_(Vehicle.vin.ilike(f"%{q}%"), Vehicle.make.ilike(f"%{q}%"), Vehicle.model.ilike(f"%{q}%"), Vehicle.plate.ilike(f"%{q}%"))).limit(20).all()
     return {"customers": [{"id": c.id, "name": c.full_name, "phone": c.phone, "email": c.email} for c in customers], "vehicles": [{"id": v.id, "vehicle": f"{v.year} {v.make} {v.model}", "vin": v.vin, "plate": v.plate} for v in vehicles]}
 
 @router.get("/quotes/{quote_id}/timeline")
-def timeline(quote_id: int, db: Session = Depends(get_db)):
+def timeline(quote_id: int, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
     rows = db.query(Activity).filter(Activity.quote_id == quote_id).order_by(Activity.created_at.asc()).all()
     return [{"event": r.event, "actor": r.actor, "detail": r.detail, "created_at": r.created_at} for r in rows]

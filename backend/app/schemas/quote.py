@@ -76,3 +76,13 @@ class PaymentIn(BaseModel):
 class ProductCheckoutIn(BaseModel):
     product_slug: str
     quantity: int = 1
+
+class ShopLoginIn(BaseModel):
+    email: EmailStr
+    password: str
+
+class ShopUserCreateIn(BaseModel):
+    email: EmailStr
+    full_name: str
+    password: str
+    role: str = "employee"

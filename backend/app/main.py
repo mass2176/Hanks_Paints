@@ -7,9 +7,13 @@ from app.api.routes import router
 from app.core.config import settings
 from app.db.session import Base, engine
 from app.models import domain  # noqa: F401
+from app.db.session import SessionLocal
+from app.services.auth import seed_initial_admin
 
 Base.metadata.create_all(bind=engine)
 os.makedirs(settings.media_root, exist_ok=True)
+with SessionLocal() as db:
+    seed_initial_admin(db)
 
 app = FastAPI(title="Hanks Paints MVP API")
 

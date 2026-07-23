@@ -24,6 +24,7 @@ Database-backed starter application for Hanks Paints.
 - Invoice and manual payment tracking endpoints
 - Activity timeline
 - Twilio-backed shop owner SMS alert when a new estimate request is submitted
+- Admin/employee shop login with role-based access
 
 ## Backend SMS notification settings
 
@@ -47,6 +48,21 @@ TWILIO_FROM_PHONE=+1...
 The backend sends the first MVP alert only to the shop notification phone when a customer creates a
 new estimate request. Customer-facing SMS remains intentionally disabled until that workflow is
 expanded.
+
+## Backend shop login settings
+
+Set these environment variables on the deployed backend before opening `/admin`:
+
+```text
+AUTH_SECRET_KEY=use-a-long-random-secret
+INITIAL_ADMIN_EMAIL=owner@example.com
+INITIAL_ADMIN_PASSWORD=use-a-strong-temporary-password
+INITIAL_ADMIN_NAME=Hanks Paints Admin
+```
+
+On startup, the backend creates the first admin user if that email does not already exist. After
+logging in as the first admin, use the Shop Users section in `/admin` to create employee or
+additional admin logins.
 
 ## Quick local backend run without Docker
 
@@ -102,7 +118,7 @@ This is a functional starter, not a finished production system. Next development
 
 1. Add real customer passwordless login/session handling.
 2. Expand SMS/email provider integration for customer-facing notifications.
-3. Add production authentication for employees/admins.
+3. Add password reset/deactivation controls for shop users.
 4. Add appointment availability settings UI.
 5. Add file upload UI to the quote form.
 6. Add object storage for media instead of local file storage.

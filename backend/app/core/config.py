@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     access_code_expire_minutes: int = 10
     customer_session_days: int = 7
     stripe_secret_key: str | None = None
+    auth_secret_key: str = "change-me-for-local-development-only"
+    auth_token_expire_minutes: int = 720
+    initial_admin_email: str | None = None
+    initial_admin_password: str | None = None
+    initial_admin_name: str = "Hanks Paints Admin"
 
     class Config:
         env_file = ".env"
