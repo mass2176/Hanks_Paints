@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import MediaPicker, { validateMediaFiles } from '../../components/MediaPicker'
 import { apiBaseUrl } from '../../lib/config'
@@ -20,10 +20,13 @@ const serviceOptions = [
 export default function Estimate() {
   const [result, setResult] = useState<any>(null)
   const [error, setError] = useState<string>('')
+  const [mediaValidationError, setMediaValidationError] = useState<string>('')
   const [uploadSummary, setUploadSummary] = useState<string>('')
   const [mediaFiles, setMediaFiles] = useState<File[]>([])
   const [selectedService, setSelectedService] = useState(serviceOptions[0])
   const [loading, setLoading] = useState(false)
+  const errorRef = useRef<HTMLDivElement>(null)
+  const mediaFieldRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const requestedService = new URLSearchParams(window.location.search).get('service')
@@ -33,23 +36,61 @@ export default function Estimate() {
     }
   }, [])
 
+  function focusValidationTarget(target?: HTMLElement | null, block: ScrollLogicalPosition = 'start') {
+    window.setTimeout(() => {
+      const targetElement = target || errorRef.current
+
+      targetElement?.scrollIntoView({ behavior: 'smooth', block })
+      targetElement?.focus()
+    }, 0)
+  }
+
+  function showSubmissionError(
+    message: string,
+    target?: HTMLElement | null,
+    block: ScrollLogicalPosition = 'start'
+  ) {
+    setError(message)
+    focusValidationTarget(target, block)
+  }
+
+  function handleInvalid(e: React.InvalidEvent<HTMLFormElement>) {
+    const target = e.target
+
+    if (
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLSelectElement ||
+      target instanceof HTMLTextAreaElement
+    ) {
+      setMediaValidationError('')
+      setError('Please complete the required field highlighted below before submitting your estimate request.')
+      focusValidationTarget(target, 'center')
+    }
+  }
+
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-      setError('')
-      setUploadSummary('')
-      setLoading(true)
+    setError('')
+    setMediaValidationError('')
+    setUploadSummary('')
+    setLoading(true)
 
     try {
       const f = new FormData(e.currentTarget)
       const files = mediaFiles.filter((file) => file.size > 0)
 
       if (!files.length) {
-        throw new Error('Please add at least one vehicle photo.')
+        const message = 'Please add at least one vehicle photo before submitting your estimate request.'
+        setMediaValidationError(message)
+        showSubmissionError(message, mediaFieldRef.current, 'center')
+        return
       }
 
       const mediaError = validateMediaFiles(files)
       if (mediaError) {
-        throw new Error(mediaError)
+        setMediaValidationError(mediaError)
+        showSubmissionError(mediaError, mediaFieldRef.current, 'center')
+        return
       }
 
       const payload = {
@@ -124,7 +165,7 @@ export default function Estimate() {
       setUploadSummary(uploaded ? `${uploaded} file${uploaded === 1 ? '' : 's'} uploaded.` : '')
       setResult(data)
     } catch (err: any) {
-      setError(`Quote submit failed. API URL: ${apiBaseUrl}. Error: ${err.message}`)
+      showSubmissionError(`Quote submit failed. API URL: ${apiBaseUrl}. Error: ${err.message}`)
     } finally {
       setLoading(false)
     }
@@ -139,7 +180,14 @@ export default function Estimate() {
       </p>
 
       {error && (
-        <div className="card" style={{ borderColor: '#ff4d4d' }}>
+        <div
+          ref={errorRef}
+          className="card form-alert"
+          role="alert"
+          aria-live="assertive"
+          tabIndex={-1}
+          style={{ borderColor: '#ff4d4d' }}
+        >
           <h2>Submission Error</h2>
           <p>{error}</p>
         </div>
@@ -169,7 +217,7 @@ export default function Estimate() {
           </div>
         </div>
       ) : (
-        <form className="form" onSubmit={submit}>
+        <form className="form" onSubmit={submit} onInvalid={handleInvalid}>
           <h2>Customer Information</h2>
 
           <div className="field">
@@ -326,9 +374,14 @@ export default function Estimate() {
             the shop review the request. A final estimate still requires a physical inspection.
           </p>
 
-          <div className="field">
+          <div ref={mediaFieldRef} className="field validation-target" tabIndex={-1}>
             <label>Vehicle Photos / Videos *</label>
             <MediaPicker files={mediaFiles} onChange={setMediaFiles} required />
+            {mediaValidationError && (
+              <p className="upload-error" role="alert">
+                {mediaValidationError}
+              </p>
+            )}
             <p className="muted">
               Choose existing photos and videos from your phone, tablet, or computer.
             </p>

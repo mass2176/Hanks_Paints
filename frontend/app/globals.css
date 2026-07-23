@@ -144,6 +144,12 @@ a {
   margin-top: 0;
 }
 
+.form-alert:focus,
+.validation-target:focus {
+  outline: 2px solid var(--blue);
+  outline-offset: 4px;
+}
+
 .muted {
   color: var(--muted);
 }
