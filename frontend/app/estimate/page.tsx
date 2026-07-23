@@ -68,6 +68,15 @@ export default function Estimate() {
     }
   }
 
+  function handleMediaFilesChange(nextFiles: File[]) {
+    setMediaFiles(nextFiles)
+
+    if (nextFiles.length && mediaValidationError) {
+      setMediaValidationError('')
+      setError('')
+    }
+  }
+
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError('')
@@ -376,7 +385,12 @@ export default function Estimate() {
 
           <div ref={mediaFieldRef} className="field validation-target" tabIndex={-1}>
             <label>Vehicle Photos / Videos *</label>
-            <MediaPicker files={mediaFiles} onChange={setMediaFiles} required />
+            <MediaPicker
+              files={mediaFiles}
+              invalid={Boolean(mediaValidationError)}
+              onChange={handleMediaFilesChange}
+              required
+            />
             {mediaValidationError && (
               <p className="upload-error" role="alert">
                 {mediaValidationError}

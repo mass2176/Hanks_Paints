@@ -9,6 +9,7 @@ const MAX_VIDEO_SIZE_BYTES = 50 * 1024 * 1024
 type MediaPickerProps = {
   files: File[]
   onChange: (files: File[]) => void
+  invalid?: boolean
   required?: boolean
 }
 
@@ -50,7 +51,7 @@ export function validateMediaFiles(files: File[]) {
   return ''
 }
 
-export default function MediaPicker({ files, onChange, required = false }: MediaPickerProps) {
+export default function MediaPicker({ files, onChange, invalid = false, required = false }: MediaPickerProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const error = validateMediaFiles(files)
   const photos = files.filter(isPhoto).length
@@ -68,9 +69,19 @@ export default function MediaPicker({ files, onChange, required = false }: Media
   return (
     <>
       <div className="upload-grid">
-        <div className="upload-card">
+        <div className={`upload-card${invalid ? ' upload-card-error' : ''}`}>
           <span>Choose from device</span>
-          <button className="btn secondary" type="button" onClick={() => inputRef.current?.click()}>
+          <button
+            className={`btn secondary upload-button${invalid ? ' upload-button-error' : ''}`}
+            type="button"
+            aria-invalid={invalid}
+            onClick={() => inputRef.current?.click()}
+          >
+            {invalid && (
+              <span className="required-badge" aria-hidden="true">
+                !
+              </span>
+            )}
             Upload Photos / Videos
           </button>
           <input

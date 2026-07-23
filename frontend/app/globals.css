@@ -210,9 +210,40 @@ a {
   background: #0b111a;
 }
 
+.upload-card-error {
+  border-color: #ff6b6b;
+  box-shadow: 0 0 0 1px rgba(255, 107, 107, .35);
+}
+
 .upload-card span {
   font-weight: 800;
   color: var(--text);
+}
+
+.upload-button {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.upload-button-error {
+  border-color: #ff6b6b;
+  color: #ffd6d6;
+}
+
+.required-badge {
+  align-items: center;
+  background: #ff5b5b;
+  border-radius: 999px;
+  color: #230000;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 900;
+  height: 20px;
+  justify-content: center;
+  line-height: 1;
+  width: 20px;
 }
 
 .upload-card .muted,
