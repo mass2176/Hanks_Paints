@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     public_base_url: str = "http://localhost:3000"
     sms_enabled: bool = False
     sms_notifications_enabled: bool = False
-    shop_notification_phone: str = "+17652724378"
+    shop_notification_phone: str = "+17652714378"
     twilio_account_sid: str | None = None
     twilio_api_key: str | None = None
     twilio_api_secret: str | None = None
