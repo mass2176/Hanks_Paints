@@ -45,8 +45,13 @@ If you prefer sending from a specific Twilio number instead of a Messaging Servi
 TWILIO_FROM_PHONE=+1...
 ```
 
-The backend sends the first MVP alert only to the shop notification phone when a customer creates a
-new estimate request. Customer-facing SMS remains intentionally disabled until that workflow is
+The backend sends:
+
+- A shop-owner alert to `SHOP_NOTIFICATION_PHONE` when a customer creates a new estimate request.
+- A customer confirmation SMS when the customer submits an estimate request and checks the SMS
+  consent box.
+
+Other customer-facing workflow messages still use notification intent logging until those steps are
 expanded.
 
 ## Backend shop login settings
