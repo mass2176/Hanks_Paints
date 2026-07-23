@@ -144,6 +144,68 @@ a {
   margin-top: 0;
 }
 
+.quote-customer {
+  margin-top: -8px;
+}
+
+.quote-status {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.status-help-wrap {
+  display: inline-flex;
+  position: relative;
+}
+
+.status-help {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--blue);
+  border-radius: 999px;
+  color: var(--blue);
+  cursor: help;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 900;
+  height: 22px;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  width: 22px;
+}
+
+.status-tooltip {
+  background: #0b111a;
+  border: 1px solid var(--blue);
+  border-radius: 10px;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, .36);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 400;
+  left: 0;
+  line-height: 1.4;
+  max-width: min(320px, 78vw);
+  opacity: 0;
+  padding: 12px;
+  pointer-events: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  transform: translateY(-4px);
+  transition: opacity .16s ease, transform .16s ease;
+  visibility: hidden;
+  width: 280px;
+  z-index: 20;
+}
+
+.status-help-wrap:hover .status-tooltip,
+.status-help:focus + .status-tooltip {
+  opacity: 1;
+  transform: translateY(0);
+  visibility: visible;
+}
+
 .form-alert:focus,
 .validation-target:focus {
   outline: 2px solid var(--blue);

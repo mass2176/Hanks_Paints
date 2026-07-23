@@ -10,6 +10,48 @@ import {
   type ShopUser,
 } from '../../lib/shopAuth'
 
+const statusHelp: Record<string, string> = {
+  'Unverified / Pending Verification':
+    'The request was created but customer verification is not complete. Next step: confirm one contact method before relying on private quote details.',
+  'Request Received':
+    'A customer submitted a new estimate request. Next step: open the quote, review the intake details and photos, then start review.',
+  'Under Review':
+    'The shop has started reviewing the request. Next step: decide whether photos are enough for a preliminary estimate or whether an in-person inspection is needed.',
+  'More Info Needed':
+    'The shop needs additional details from the customer. Next step: message the customer or request more photos/details.',
+  'In-Person Inspection Needed':
+    'Photos are not enough to finalize pricing. Next step: have the customer request an inspection time and confirm the appointment.',
+  'Appointment Requested':
+    'The customer requested an inspection appointment. Next step: confirm the requested time or coordinate a new time.',
+  'Appointment Confirmed':
+    'The inspection appointment is scheduled. Next step: complete the physical inspection before creating a final estimate.',
+  'Physical Inspection Completed':
+    'The vehicle has been inspected in person. Next step: create or update the final line-item estimate.',
+  'Preliminary Estimate Ready':
+    'A photo-based preliminary estimate is ready. This does not authorize repairs. Next step: share it with the customer or require inspection for a final estimate.',
+  'Final Estimate Ready':
+    'The final estimate is ready for customer approval. Next step: customer reviews and signs the final estimate in the portal.',
+  'Final Estimate Approved':
+    'The customer signed and approved the final estimate. Next step: convert the approved quote to an active job.',
+  'Converted to Job':
+    'The approved quote is now an active repair job. Next step: manage repair progress, supplements, invoice, and payment tracking.',
+}
+
+function StatusHelp({ status }: { status: string }) {
+  const helpText = statusHelp[status] || 'Open the quote to review the current workflow state and available next actions.'
+
+  return (
+    <span className="status-help-wrap">
+      <button className="status-help" type="button" aria-label={`What ${status} means`}>
+        ?
+      </button>
+      <span className="status-tooltip" role="tooltip">
+        {helpText}
+      </span>
+    </span>
+  )
+}
+
 export default function Admin() {
   const [user, setUser] = useState<ShopUser | null>(null)
   const [rows, setRows] = useState<any[]>([])
@@ -285,10 +327,12 @@ export default function Admin() {
             {rows.map((row) => (
               <div className="card" key={row.id}>
                 <h3>Quote #{row.id}</h3>
+                <p className="muted quote-customer">{row.customer_name || 'Unknown Customer'}</p>
                 <p>{row.service_type}</p>
                 <p className="muted">{row.payment_type}</p>
-                <p>
+                <p className="quote-status">
                   <b>{row.status}</b>
+                  <StatusHelp status={row.status} />
                 </p>
                 <a className="btn secondary" href={`/admin/quotes/${row.id}`}>
                   Open

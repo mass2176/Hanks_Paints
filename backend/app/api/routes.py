@@ -711,7 +711,18 @@ def record_payment(invoice_id: int, payload: PaymentIn, db: Session = Depends(ge
 @router.get("/dashboard")
 def dashboard(db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
     quotes = db.query(QuoteRequest).order_by(QuoteRequest.created_at.desc()).limit(50).all()
-    return [{"id": q.id, "service_type": q.service_type, "payment_type": q.payment_type, "status": q.status.value, "created_at": q.created_at} for q in quotes]
+    rows = []
+    for quote in quotes:
+        customer = db.get(Customer, quote.customer_id)
+        rows.append({
+            "id": quote.id,
+            "customer_name": customer.full_name if customer else "Unknown Customer",
+            "service_type": quote.service_type,
+            "payment_type": quote.payment_type,
+            "status": quote.status.value,
+            "created_at": quote.created_at,
+        })
+    return rows
 
 @router.get("/search")
 def search(q: str, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
