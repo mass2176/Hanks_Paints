@@ -45,6 +45,7 @@ export default function Estimate() {
   const [loading, setLoading] = useState(false)
   const errorRef = useRef<HTMLDivElement>(null)
   const mediaFieldRef = useRef<HTMLDivElement>(null)
+  const validationHighlightTimer = useRef<number | null>(null)
 
   useEffect(() => {
     const requestedService = new URLSearchParams(window.location.search).get('service')
@@ -54,36 +55,60 @@ export default function Estimate() {
     }
   }, [])
 
-  function focusValidationTarget(target?: HTMLElement | null, block: ScrollLogicalPosition = 'start') {
+  function highlightValidationTarget(target?: HTMLElement | null) {
+    const targetElement = target || errorRef.current
+    const highlightElement =
+      targetElement instanceof HTMLInputElement ||
+      targetElement instanceof HTMLSelectElement ||
+      targetElement instanceof HTMLTextAreaElement
+        ? targetElement.closest('.field')
+        : targetElement
+
+    if (!(highlightElement instanceof HTMLElement)) return
+
+    highlightElement.classList.add('validation-highlight')
+
+    if (validationHighlightTimer.current) {
+      window.clearTimeout(validationHighlightTimer.current)
+    }
+
+    validationHighlightTimer.current = window.setTimeout(() => {
+      highlightElement.classList.remove('validation-highlight')
+      validationHighlightTimer.current = null
+    }, 3200)
+  }
+
+  function scrollValidationTarget(
+    target?: HTMLElement | null,
+    block: ScrollLogicalPosition = 'start',
+    shouldFocus = false
+  ) {
     window.setTimeout(() => {
       const targetElement = target || errorRef.current
 
       targetElement?.scrollIntoView({ behavior: 'smooth', block })
-      targetElement?.focus()
+      highlightValidationTarget(targetElement)
+
+      if (shouldFocus) {
+        targetElement?.focus({ preventScroll: true })
+      }
     }, 0)
   }
 
   function showSubmissionError(
     message: string,
     target?: HTMLElement | null,
-    block: ScrollLogicalPosition = 'start'
+    block: ScrollLogicalPosition = 'start',
+    shouldFocus = false
   ) {
     setError(message)
-    focusValidationTarget(target, block)
+    scrollValidationTarget(target, block, shouldFocus)
   }
 
-  function handleInvalid(e: React.InvalidEvent<HTMLFormElement>) {
-    const target = e.target
-
-    if (
-      target instanceof HTMLInputElement ||
-      target instanceof HTMLSelectElement ||
-      target instanceof HTMLTextAreaElement
-    ) {
-      setMediaValidationError('')
-      setError('Please complete the required field highlighted below before submitting your estimate request.')
-      focusValidationTarget(target, 'center')
-    }
+  function showRequiredFieldError(target: HTMLElement) {
+    setMediaValidationError('')
+    setError('Please complete the required field highlighted below before submitting your estimate request.')
+    scrollValidationTarget(target, 'center')
   }
 
   function handleMediaFilesChange(nextFiles: File[]) {
@@ -100,10 +125,19 @@ export default function Estimate() {
     setError('')
     setMediaValidationError('')
     setUploadSummary('')
+
+    const form = e.currentTarget
+    const firstInvalidField = form.querySelector(':invalid')
+
+    if (firstInvalidField instanceof HTMLElement) {
+      showRequiredFieldError(firstInvalidField)
+      return
+    }
+
     setLoading(true)
 
     try {
-      const f = new FormData(e.currentTarget)
+      const f = new FormData(form)
       const files = mediaFiles.filter((file) => file.size > 0)
 
       if (!files.length) {
@@ -244,7 +278,7 @@ export default function Estimate() {
           </div>
         </div>
       ) : (
-        <form className="form" onSubmit={submit} onInvalid={handleInvalid}>
+        <form className="form" onSubmit={submit} noValidate>
           <h2>Customer Information</h2>
 
           <div className="field">

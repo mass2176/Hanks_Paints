@@ -212,6 +212,19 @@ a {
   outline-offset: 4px;
 }
 
+.validation-highlight {
+  border-radius: 12px;
+  outline: 2px solid #ff5b5b;
+  outline-offset: 5px;
+}
+
+.field.validation-highlight input,
+.field.validation-highlight select,
+.field.validation-highlight textarea {
+  border-color: #ff5b5b;
+  box-shadow: 0 0 0 3px rgba(255, 91, 91, .2);
+}
+
 .muted {
   color: var(--muted);
 }
@@ -240,6 +253,7 @@ a {
   border: 1px solid var(--line);
   background: #0b111a;
   color: var(--text);
+  font-size: 16px;
 }
 
 .field select {
