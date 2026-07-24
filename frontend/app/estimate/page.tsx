@@ -17,12 +17,30 @@ const serviceOptions = [
   'Other / Not Sure',
 ]
 
+function formatUsPhone(value: string) {
+  const digitsOnly = value.replace(/\D/g, '')
+  const localDigits =
+    digitsOnly.length === 11 && digitsOnly.startsWith('1') ? digitsOnly.slice(1) : digitsOnly
+  const digits = localDigits.slice(0, 10)
+
+  if (digits.length <= 3) {
+    return digits
+  }
+
+  if (digits.length <= 6) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3)}`
+  }
+
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`
+}
+
 export default function Estimate() {
   const [result, setResult] = useState<any>(null)
   const [error, setError] = useState<string>('')
   const [mediaValidationError, setMediaValidationError] = useState<string>('')
   const [uploadSummary, setUploadSummary] = useState<string>('')
   const [mediaFiles, setMediaFiles] = useState<File[]>([])
+  const [phone, setPhone] = useState('')
   const [selectedService, setSelectedService] = useState(serviceOptions[0])
   const [loading, setLoading] = useState(false)
   const errorRef = useRef<HTMLDivElement>(null)
@@ -268,7 +286,18 @@ export default function Estimate() {
           <div className="row">
             <div className="field">
               <label>Phone *</label>
-              <input name="phone" required />
+              <input
+                name="phone"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                placeholder="(123) 456-7890"
+                value={phone}
+                onChange={(e) => setPhone(formatUsPhone(e.target.value))}
+                pattern={String.raw`\(\d{3}\) \d{3}-\d{4}`}
+                title="Enter a 10-digit US phone number."
+                required
+              />
             </div>
             <div className="field">
               <label>Email *</label>
