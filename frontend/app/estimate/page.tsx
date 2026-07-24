@@ -61,7 +61,7 @@ export default function Estimate() {
       targetElement instanceof HTMLInputElement ||
       targetElement instanceof HTMLSelectElement ||
       targetElement instanceof HTMLTextAreaElement
-        ? targetElement.closest('.field')
+        ? targetElement.closest('.field, .validation-target, .card')
         : targetElement
 
     if (!(highlightElement instanceof HTMLElement)) return
@@ -107,7 +107,11 @@ export default function Estimate() {
 
   function showRequiredFieldError(target: HTMLElement) {
     setMediaValidationError('')
-    setError('Please complete the required field highlighted below before submitting your estimate request.')
+    setError(
+      target instanceof HTMLInputElement && target.name === 'sms_consent'
+        ? 'Please agree to receive service-related text messages before submitting your estimate request.'
+        : 'Please complete the required field highlighted below before submitting your estimate request.'
+    )
     scrollValidationTarget(target, 'center')
   }
 
@@ -339,10 +343,10 @@ export default function Estimate() {
             </div>
           </div>
 
-          <div className="card">
+          <div className="card validation-target">
             <label>
-              <input name="sms_consent" type="checkbox" /> I agree to receive service-related text
-              messages from Hanks Paints about my estimate request, quote review, inspection
+              <input name="sms_consent" type="checkbox" required /> I agree to receive
+              service-related text messages from Hanks Paints about my estimate request, quote review, inspection
               scheduling, customer messages, approvals, repair status updates, invoices, pickup
               reminders, and payment reminders.
             </label>
