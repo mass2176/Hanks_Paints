@@ -18,6 +18,7 @@ from app.services.notifications import (
     send_customer_notification,
     send_customer_quote_received_notification,
     send_shop_new_quote_notification,
+    send_shop_product_order_notification,
 )
 
 router = APIRouter()
@@ -56,6 +57,24 @@ FLAT_RATE_SHIPPING = {
 
 def frontend_origin(request: Request):
     return (request.headers.get("origin") or settings.public_base_url).rstrip("/")
+
+def format_cents(amount: int | None, currency: str | None = "usd"):
+    if amount is None:
+        return "unknown"
+    symbol = "$" if (currency or "usd").lower() == "usd" else f"{currency.upper()} "
+    return f"{symbol}{amount / 100:.2f}"
+
+def shipping_summary_from_session(session):
+    customer_details = session.get("customer_details") or {}
+    address = customer_details.get("address") or {}
+    parts = [
+        address.get("line1"),
+        address.get("line2"),
+        address.get("city"),
+        address.get("state"),
+        address.get("postal_code"),
+    ]
+    return ", ".join(str(part) for part in parts if part)
 
 @router.post("/auth/login")
 def shop_login(payload: ShopLoginIn, db: Session = Depends(get_db)):
@@ -307,14 +326,53 @@ def create_product_checkout(payload: ProductCheckoutIn, request: Request):
             success_url=f"{origin}/products/success?session_id={{CHECKOUT_SESSION_ID}}",
             cancel_url=f"{origin}/products",
             metadata={
+                "source": "product_order",
                 "product_slug": payload.product_slug,
                 "product_name": product["name"],
+                "quantity": str(payload.quantity),
             },
         )
     except stripe.StripeError as exc:
         raise HTTPException(502, str(exc)) from exc
 
     return {"checkout_url": session.url, "session_id": session.id}
+
+@router.post("/stripe/webhook")
+async def stripe_webhook(request: Request):
+    if not settings.stripe_webhook_secret:
+        raise HTTPException(503, "Stripe webhook is not configured")
+
+    payload = await request.body()
+    signature = request.headers.get("stripe-signature")
+    if not signature:
+        raise HTTPException(400, "Missing Stripe signature")
+
+    try:
+        event = stripe.Webhook.construct_event(payload, signature, settings.stripe_webhook_secret)
+    except ValueError as exc:
+        raise HTTPException(400, "Invalid Stripe webhook payload") from exc
+    except stripe.SignatureVerificationError as exc:
+        raise HTTPException(400, "Invalid Stripe webhook signature") from exc
+
+    if event.get("type") == "checkout.session.completed":
+        session = event["data"]["object"]
+        metadata = session.get("metadata") or {}
+
+        if metadata.get("source") == "product_order" and session.get("payment_status") == "paid":
+            customer_details = session.get("customer_details") or {}
+            quantity = int(metadata.get("quantity") or 1)
+            send_shop_product_order_notification(
+                product_name=metadata.get("product_name") or "Hanks Paints product",
+                quantity=quantity,
+                amount_total=format_cents(session.get("amount_total"), session.get("currency")),
+                customer_name=customer_details.get("name") or "not provided",
+                customer_email=customer_details.get("email") or "",
+                customer_phone=customer_details.get("phone") or "",
+                shipping_summary=shipping_summary_from_session(session),
+                session_id=session.get("id") or "unknown",
+            )
+
+    return {"received": True}
 
 @router.post("/quotes", response_model=QuoteOut)
 def create_quote(payload: QuoteCreate, db: Session = Depends(get_db)):

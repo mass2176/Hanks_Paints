@@ -92,3 +92,23 @@ def send_shop_new_quote_notification(*, quote_id: int, customer_name: str, servi
         f"for {service_type}. Open the admin dashboard to review: https://hanks-paints.com/admin"
     )
     return _send_sms(settings.shop_notification_phone, message)
+
+
+def send_shop_product_order_notification(
+    *,
+    product_name: str,
+    quantity: int,
+    amount_total: str,
+    customer_name: str,
+    customer_email: str,
+    customer_phone: str,
+    shipping_summary: str,
+    session_id: str,
+) -> bool:
+    message = (
+        f"Hanks Paints: New product order paid. {product_name} x{quantity}. "
+        f"Total: {amount_total}. Customer: {customer_name}. "
+        f"Phone: {customer_phone or 'not provided'}. Email: {customer_email or 'not provided'}. "
+        f"Ship to: {shipping_summary or 'see Stripe'}. Stripe session: {session_id}"
+    )
+    return _send_sms(settings.shop_notification_phone, message)
