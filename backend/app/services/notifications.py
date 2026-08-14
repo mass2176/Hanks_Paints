@@ -94,6 +94,21 @@ def send_shop_new_quote_notification(*, quote_id: int, customer_name: str, servi
     return _send_sms(settings.shop_notification_phone, message)
 
 
+def send_shop_quote_not_started_reminder(
+    *,
+    quote_id: int,
+    customer_name: str,
+    service_type: str,
+    hours_waiting: int,
+) -> bool:
+    message = (
+        f"Hanks Paints: Estimate request #{quote_id} from {customer_name} "
+        f"for {service_type} has not been started after {hours_waiting}+ hours. "
+        "Open the admin dashboard to start review: https://hanks-paints.com/admin"
+    )
+    return _send_sms(settings.shop_notification_phone, message)
+
+
 def send_shop_product_order_notification(
     *,
     product_name: str,

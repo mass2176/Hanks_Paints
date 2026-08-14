@@ -7,7 +7,9 @@ class Settings(BaseSettings):
     public_base_url: str = "http://localhost:3000"
     sms_enabled: bool = False
     sms_notifications_enabled: bool = False
-    shop_notification_phone: str = "+17652714378"
+    shop_notification_phone: str = "+17652527998"
+    quote_review_reminder_hours: int = 24
+    maintenance_secret: str | None = None
     twilio_account_sid: str | None = None
     twilio_api_key: str | None = None
     twilio_api_secret: str | None = None

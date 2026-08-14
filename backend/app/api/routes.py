@@ -1,5 +1,5 @@
 import os, shutil, uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
@@ -18,6 +18,7 @@ from app.services.notifications import (
     send_customer_notification,
     send_customer_quote_received_notification,
     send_shop_new_quote_notification,
+    send_shop_quote_not_started_reminder,
     send_shop_product_order_notification,
 )
 
@@ -55,6 +56,8 @@ FLAT_RATE_SHIPPING = {
     "type": "fixed_amount",
 }
 
+QUOTE_REVIEW_REMINDER_EVENT = "Quote review reminder SMS sent"
+
 def frontend_origin(request: Request):
     return (request.headers.get("origin") or settings.public_base_url).rstrip("/")
 
@@ -75,6 +78,13 @@ def shipping_summary_from_session(session):
         address.get("postal_code"),
     ]
     return ", ".join(str(part) for part in parts if part)
+
+def require_maintenance_secret(request: Request):
+    if not settings.maintenance_secret:
+        raise HTTPException(503, "Maintenance secret is not configured")
+    supplied = request.headers.get("x-maintenance-secret") or request.query_params.get("secret")
+    if supplied != settings.maintenance_secret:
+        raise HTTPException(401, "Invalid maintenance secret")
 
 @router.post("/auth/login")
 def shop_login(payload: ShopLoginIn, db: Session = Depends(get_db)):
@@ -373,6 +383,59 @@ async def stripe_webhook(request: Request):
             )
 
     return {"received": True}
+
+@router.post("/maintenance/quote-review-reminders")
+def send_quote_review_reminders(request: Request, db: Session = Depends(get_db)):
+    require_maintenance_secret(request)
+
+    reminder_hours = max(1, settings.quote_review_reminder_hours)
+    cutoff = datetime.utcnow() - timedelta(hours=reminder_hours)
+    stale_quotes = (
+        db.query(QuoteRequest)
+        .filter(QuoteRequest.status == QuoteStatus.received)
+        .filter(QuoteRequest.created_at <= cutoff)
+        .order_by(QuoteRequest.created_at.asc())
+        .all()
+    )
+
+    checked = len(stale_quotes)
+    sent = 0
+    skipped = 0
+    results = []
+
+    for quote in stale_quotes:
+        existing_reminder = (
+            db.query(Activity)
+            .filter(Activity.quote_id == quote.id, Activity.event == QUOTE_REVIEW_REMINDER_EVENT)
+            .first()
+        )
+        if existing_reminder:
+            skipped += 1
+            results.append({"quote_id": quote.id, "status": "skipped_already_reminded"})
+            continue
+
+        customer = db.get(Customer, quote.customer_id)
+        customer_name = customer.full_name if customer else "unknown customer"
+        if send_shop_quote_not_started_reminder(
+            quote_id=quote.id,
+            customer_name=customer_name,
+            service_type=quote.service_type,
+            hours_waiting=reminder_hours,
+        ):
+            log_activity(
+                db,
+                quote_id=quote.id,
+                event=QUOTE_REVIEW_REMINDER_EVENT,
+                actor="system",
+                detail=f"Request still not under review after {reminder_hours}+ hours",
+            )
+            sent += 1
+            results.append({"quote_id": quote.id, "status": "sent"})
+        else:
+            skipped += 1
+            results.append({"quote_id": quote.id, "status": "sms_not_sent"})
+
+    return {"checked": checked, "sent": sent, "skipped": skipped, "results": results}
 
 @router.post("/quotes", response_model=QuoteOut)
 def create_quote(payload: QuoteCreate, db: Session = Depends(get_db)):

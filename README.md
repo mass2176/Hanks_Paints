@@ -32,7 +32,7 @@ Set these environment variables on the deployed backend to enable shop-owner SMS
 
 ```text
 SMS_NOTIFICATIONS_ENABLED=true
-SHOP_NOTIFICATION_PHONE=+17652714378
+SHOP_NOTIFICATION_PHONE=+17652527998
 TWILIO_ACCOUNT_SID=AC...
 TWILIO_API_KEY=SK...
 TWILIO_API_SECRET=...
@@ -48,11 +48,32 @@ TWILIO_FROM_PHONE=+1...
 The backend sends:
 
 - A shop-owner alert to `SHOP_NOTIFICATION_PHONE` when a customer creates a new estimate request.
+- A shop-owner reminder when a customer estimate request is still `Request Received` and has not
+  been started after `QUOTE_REVIEW_REMINDER_HOURS`.
 - A customer confirmation SMS when the customer submits an estimate request and checks the SMS
   consent box.
 
 Other customer-facing workflow messages still use notification intent logging until those steps are
 expanded.
+
+## Backend stale estimate reminder settings
+
+Set these environment variables on the deployed backend:
+
+```text
+QUOTE_REVIEW_REMINDER_HOURS=24
+MAINTENANCE_SECRET=use-a-long-random-secret
+```
+
+Create a Render Cron Job that runs on the schedule you want, such as hourly, and sends:
+
+```bash
+curl -X POST https://hanks-paints-backend.onrender.com/api/maintenance/quote-review-reminders \
+  -H "x-maintenance-secret: use-a-long-random-secret"
+```
+
+The endpoint only sends one reminder per quote. It skips quotes that are no longer `Request
+Received` or already have a `Quote review reminder SMS sent` activity record.
 
 ## Backend shop login settings
 
