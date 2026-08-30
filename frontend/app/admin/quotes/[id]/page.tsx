@@ -294,6 +294,17 @@ export default function QuoteDetail() {
     }, `Invoice #${invoice.id} text sent to ${phone}.`)
   }
 
+  async function textEstimateAction(estimate: any) {
+    const phone = data?.customer?.phone || ''
+    const confirmed = window.confirm(`Text estimate #${estimate.id} to ${phone}?`)
+    if (!confirmed) return
+
+    await run(async () => {
+      const res = await shopFetch(`/estimates/${estimate.id}/send-sms`, { method: 'POST' })
+      if (!res.ok) throw new Error(await res.text())
+    }, `Estimate #${estimate.id} text sent to ${phone}.`)
+  }
+
   return (
     <main className="section">
       <h1>Quote #{id}</h1>
@@ -461,6 +472,9 @@ export default function QuoteDetail() {
                 <div className="btns">
                   <button className="btn secondary" type="button" onClick={() => shareEstimateAction(existingEstimate)}>
                     Share Estimate
+                  </button>
+                  <button className="btn secondary" type="button" onClick={() => textEstimateAction(existingEstimate)}>
+                    Text Estimate
                   </button>
                   <button className="btn secondary" type="button" onClick={() => printEstimate(`estimate-print-${existingEstimate.id}`)}>
                     Print Estimate

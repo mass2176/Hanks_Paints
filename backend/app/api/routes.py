@@ -15,6 +15,7 @@ from app.schemas.quote import AppointmentRequestIn, EstimateApprovalIn, Estimate
 from app.services.activity import log_activity
 from app.services.auth import create_access_token, get_current_shop_user, hash_password, public_user, require_admin, verify_password
 from app.services.notifications import (
+    send_customer_estimate_notification,
     send_customer_notification,
     send_customer_invoice_notification,
     send_customer_quote_received_notification,
@@ -761,6 +762,35 @@ def approve_estimate(estimate_id: int, payload: EstimateApprovalIn, request: Req
     db.commit(); db.refresh(approval)
     log_activity(db, quote_id=quote.id, event="Final estimate approved and signed", actor="customer", detail=typed_name)
     return {"approval_id": approval.id, "quote_status": quote.status.value}
+
+@router.post("/estimates/{estimate_id}/send-sms")
+def send_estimate_sms(estimate_id: int, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
+    estimate = db.get(Estimate, estimate_id)
+    if not estimate:
+        raise HTTPException(404, "Estimate not found")
+
+    quote = db.get(QuoteRequest, estimate.quote_id)
+    if not quote:
+        raise HTTPException(404, "Quote not found")
+
+    customer = db.get(Customer, quote.customer_id)
+    if not customer or not customer.phone:
+        raise HTTPException(400, "Customer phone number is missing")
+
+    items = db.query(EstimateLineItem).filter(EstimateLineItem.estimate_id == estimate.id, EstimateLineItem.customer_visible == True).all()  # noqa: E712
+    total = sum(item.amount for item in items)
+    sent = send_customer_estimate_notification(
+        phone=customer.phone,
+        quote_id=quote.id,
+        estimate_id=estimate.id,
+        estimate_type=estimate.estimate_type,
+        total=total,
+    )
+    if not sent:
+        raise HTTPException(503, "Estimate text could not be sent. Check Twilio configuration and the customer phone number.")
+
+    log_activity(db, quote_id=quote.id, event="Estimate SMS sent", actor=user.role.value, detail=customer.phone)
+    return {"sent": True, "phone": customer.phone, "estimate_id": estimate.id}
 
 @router.post("/quotes/{quote_id}/convert-to-job")
 def convert_quote_to_job(quote_id: int, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):

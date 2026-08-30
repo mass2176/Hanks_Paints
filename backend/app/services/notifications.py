@@ -143,3 +143,21 @@ def send_customer_invoice_notification(
         "Use your phone or email to open private details. Reply STOP to opt out."
     )
     return _send_sms(phone, message)
+
+
+def send_customer_estimate_notification(
+    *,
+    phone: str,
+    quote_id: int,
+    estimate_id: int,
+    estimate_type: str,
+    total: float,
+) -> bool:
+    estimate_label = "Final estimate" if estimate_type == "final" else "Preliminary photo estimate"
+    message = (
+        f"Hanks Paints: Your {estimate_label.lower()} #{estimate_id} for Quote #{quote_id} is ready. "
+        f"Estimated total: ${total:.2f}. View it here: "
+        f"https://hanks-paints.com/portal?quote={quote_id} "
+        "Use your phone or email to open private details. Reply STOP to opt out."
+    )
+    return _send_sms(phone, message)
