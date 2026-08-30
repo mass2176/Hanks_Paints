@@ -200,3 +200,149 @@ def render_invoice_preview(
     output_path = os.path.join(preview_dir, "invoice.jpg")
     image.save(output_path, "JPEG", quality=88, optimize=True)
     return token
+
+
+def render_estimate_preview(
+    *,
+    estimate,
+    quote,
+    customer,
+    vehicle,
+    line_items,
+    total: float,
+) -> str:
+    token = uuid.uuid4().hex
+    preview_dir = os.path.join(settings.media_root, "estimates", token)
+    os.makedirs(preview_dir, exist_ok=True)
+
+    width = 1200
+    height = 1650
+    margin = 80
+    image = Image.new("RGB", (width, height), "#ffffff")
+    draw = ImageDraw.Draw(image)
+
+    font_small = _font(24)
+    font_body = _font(30)
+    font_bold = _font(30, bold=True)
+    font_header = _font(42, bold=True)
+    font_title = _font(52, bold=True)
+
+    blue = "#344f87"
+    light_blue = "#dbe4f6"
+    black = "#111111"
+    gray = "#555555"
+    line = "#8c8c8c"
+
+    estimate_label = "Final Estimate" if estimate.estimate_type == "final" else "Photo Estimate"
+
+    y = margin
+    draw.text((margin, y), "Hanks Paints", font=font_header, fill=black)
+    y += 54
+    for business_line in [
+        "Auto Body, Paint, Rust Repair, Coatings, Spray PPF",
+        "Phone: (765) 252-7998",
+        "Website: hanks-paints.com",
+    ]:
+        draw.text((margin, y), business_line, font=font_small, fill=gray)
+        y += 32
+
+    draw.text((width - margin - 420, margin), estimate_label.upper(), font=font_title, fill="#6e8bbd")
+    info_x = width - margin - 340
+    info_y = margin + 80
+    for label, value in [("Estimate #", str(estimate.id)), ("Quote #", str(quote.id)), ("Status", _status(estimate.status))]:
+        draw.rectangle((info_x, info_y, info_x + 150, info_y + 38), fill=blue)
+        draw.rectangle((info_x + 150, info_y, info_x + 340, info_y + 38), outline=line)
+        draw.text((info_x + 10, info_y + 7), label, font=font_small, fill="#ffffff")
+        draw.text((info_x + 164, info_y + 7), value, font=font_small, fill=black)
+        info_y += 38
+
+    y = 280
+    column_width = 500
+    left_x = margin
+    right_x = margin + column_width + 40
+
+    bill_y = _box_header(draw, (left_x, y), column_width, "Customer", font_small)
+    draw.rectangle((left_x, bill_y, left_x + column_width, bill_y + 180), outline=line)
+    address = [customer.full_name, customer.street_address, ", ".join(part for part in [customer.city, customer.state, customer.zip_code] if part), _phone(customer.phone), customer.email]
+    text_y = bill_y + 12
+    for item in [part for part in address if part]:
+        draw.text((left_x + 12, text_y), str(item), font=font_small, fill=black)
+        text_y += 32
+
+    vehicle_y = _box_header(draw, (right_x, y), column_width, "Vehicle / Request", font_small)
+    draw.rectangle((right_x, vehicle_y, right_x + column_width, vehicle_y + 180), outline=line)
+    vehicle_name = " ".join(str(part) for part in [vehicle.year, vehicle.make, vehicle.model, vehicle.trim] if part)
+    vehicle_lines = [
+        vehicle_name or "Vehicle details not provided",
+        f"Service: {quote.service_type}",
+        f"Payment: {quote.payment_type}",
+        f"VIN: {vehicle.vin}" if vehicle.vin else "",
+        f"Plate: {vehicle.plate}" if vehicle.plate else "",
+    ]
+    text_y = vehicle_y + 12
+    for item in [part for part in vehicle_lines if part]:
+        draw.text((right_x + 12, text_y), str(item), font=font_small, fill=black)
+        text_y += 32
+
+    y = 540
+    table_x = margin
+    table_width = width - (margin * 2)
+    columns = [80, 640, 220, 100]
+    headers = ["Item", "Description", "Category", "Total"]
+    x = table_x
+    for index, header in enumerate(headers):
+        draw.rectangle((x, y, x + columns[index], y + 44), fill=blue)
+        draw.text((x + 10, y + 10), header.upper(), font=font_small, fill="#ffffff")
+        x += columns[index]
+
+    y += 44
+    rows = [
+        (str(index + 1), item.description or "-", item.category or "Labor/Repair", _money(item.amount))
+        for index, item in enumerate(line_items[:12])
+    ] or [("1", "No line items entered.", "-", _money(total))]
+
+    for row in rows:
+        row_height = 54
+        x = table_x
+        for index, value in enumerate(row):
+            draw.rectangle((x, y, x + columns[index], y + row_height), outline=line)
+            draw.text((x + 10, y + 12), value, font=font_small, fill=black)
+            x += columns[index]
+        y += row_height
+
+    y += 28
+    total_x = width - margin - 520
+    draw.rectangle((total_x, y, total_x + 330, y + 46), outline=line)
+    draw.rectangle((total_x + 330, y, total_x + 520, y + 46), fill=light_blue, outline=line)
+    draw.text((total_x + 12, y + 10), "ESTIMATED TOTAL", font=font_bold, fill=black)
+    draw.text((total_x + 350, y + 10), _money(total), font=font_bold, fill=black)
+
+    y += 110
+    notes_y = _box_header(draw, (margin, y), table_width, "Notes and Terms", font_small)
+    draw.rectangle((margin, notes_y, margin + table_width, notes_y + 210), outline=line)
+    notes = estimate.customer_notes or quote.damage_description or "No customer notes provided."
+    next_y = _draw_wrapped(draw, notes, (margin + 12, notes_y + 16), font_body, black, 74)
+    _draw_wrapped(
+        draw,
+        "Photo-based estimates are preliminary only. Final pricing requires an in-person inspection. Hidden damage may require a separate supplement or change order approval.",
+        (margin + 12, next_y + 18),
+        font_small,
+        gray,
+        95,
+    )
+
+    y = height - 160
+    draw.line((margin, y, width - margin, y), fill=line, width=2)
+    y += 24
+    _draw_wrapped(
+        draw,
+        "This image is a customer convenience copy. Use the secure Hanks Paints portal for private estimate details, messages, approvals, and status updates.",
+        (margin, y),
+        font_small,
+        gray,
+        90,
+    )
+
+    output_path = os.path.join(preview_dir, "estimate.jpg")
+    image.save(output_path, "JPEG", quality=88, optimize=True)
+    return token

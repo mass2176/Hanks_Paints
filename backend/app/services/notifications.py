@@ -165,6 +165,7 @@ def send_customer_estimate_notification(
     estimate_id: int,
     estimate_type: str,
     total: float,
+    media_url: str | None = None,
 ) -> bool:
     estimate_label = "Final estimate" if estimate_type == "final" else "Preliminary photo estimate"
     message = (
@@ -173,4 +174,4 @@ def send_customer_estimate_notification(
         f"https://hanks-paints.com/portal?quote={quote_id} "
         "Use your phone or email to open private details. Reply STOP to opt out."
     )
-    return _send_sms(phone, message)
+    return _send_sms(phone, message, media_url=media_url)

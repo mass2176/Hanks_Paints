@@ -15,7 +15,7 @@ from app.models.domain import (
 from app.schemas.quote import AppointmentRequestIn, EstimateApprovalIn, EstimateCreate, InspectionCompleteIn, MessageIn, PaymentIn, ProductCheckoutIn, QuoteCreate, QuoteOut, ShopLoginIn, ShopUserCreateIn
 from app.services.activity import log_activity
 from app.services.auth import create_access_token, get_current_shop_user, hash_password, public_user, require_admin, verify_password
-from app.services.invoice_preview import render_invoice_preview
+from app.services.invoice_preview import render_estimate_preview, render_invoice_preview
 from app.services.notifications import (
     send_customer_estimate_notification,
     send_customer_notification,
@@ -773,7 +773,7 @@ def approve_estimate(estimate_id: int, payload: EstimateApprovalIn, request: Req
     return {"approval_id": approval.id, "quote_status": quote.status.value}
 
 @router.post("/estimates/{estimate_id}/send-sms")
-def send_estimate_sms(estimate_id: int, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
+def send_estimate_sms(estimate_id: int, request: Request, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
     estimate = db.get(Estimate, estimate_id)
     if not estimate:
         raise HTTPException(404, "Estimate not found")
@@ -788,18 +788,29 @@ def send_estimate_sms(estimate_id: int, db: Session = Depends(get_db), user: Sho
 
     items = db.query(EstimateLineItem).filter(EstimateLineItem.estimate_id == estimate.id, EstimateLineItem.customer_visible == True).all()  # noqa: E712
     total = sum(item.amount for item in items)
+    vehicle = db.get(Vehicle, quote.vehicle_id)
+    preview_token = render_estimate_preview(
+        estimate=estimate,
+        quote=quote,
+        customer=customer,
+        vehicle=vehicle,
+        line_items=items,
+        total=total,
+    )
+    media_url = f"{backend_origin(request)}/api/estimate-previews/{preview_token}/estimate.jpg"
     sent = send_customer_estimate_notification(
         phone=customer.phone,
         quote_id=quote.id,
         estimate_id=estimate.id,
         estimate_type=estimate.estimate_type,
         total=total,
+        media_url=media_url,
     )
     if not sent:
         raise HTTPException(503, "Estimate text could not be sent. Check Twilio configuration and the customer phone number.")
 
-    log_activity(db, quote_id=quote.id, event="Estimate SMS sent", actor=user.role.value, detail=customer.phone)
-    return {"sent": True, "phone": customer.phone, "estimate_id": estimate.id}
+    log_activity(db, quote_id=quote.id, event="Estimate MMS sent", actor=user.role.value, detail=customer.phone)
+    return {"sent": True, "phone": customer.phone, "estimate_id": estimate.id, "media_url": media_url}
 
 @router.post("/quotes/{quote_id}/convert-to-job")
 def convert_quote_to_job(quote_id: int, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
@@ -934,6 +945,21 @@ def get_invoice_preview(preview_token: str):
         path,
         media_type="image/jpeg",
         headers={"Content-Disposition": 'inline; filename="invoice.jpg"'},
+    )
+
+@router.get("/estimate-previews/{preview_token}/estimate.jpg")
+def get_estimate_preview(preview_token: str):
+    if len(preview_token) != 32 or not all(character in "0123456789abcdef" for character in preview_token):
+        raise HTTPException(404, "Estimate preview not found")
+
+    path = os.path.join(settings.media_root, "estimates", preview_token, "estimate.jpg")
+    if not os.path.exists(path):
+        raise HTTPException(404, "Estimate preview not found")
+
+    return FileResponse(
+        path,
+        media_type="image/jpeg",
+        headers={"Content-Disposition": 'inline; filename="estimate.jpg"'},
     )
 
 @router.get("/dashboard")
