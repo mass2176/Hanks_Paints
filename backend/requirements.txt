@@ -9,3 +9,4 @@ passlib[bcrypt]==1.7.4
 bcrypt<5
 python-jose[cryptography]==3.3.0
 stripe==11.6.0
+pillow==11.1.0

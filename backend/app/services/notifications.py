@@ -22,7 +22,7 @@ def _twilio_ready() -> bool:
     )
 
 
-def _send_sms(destination: str, message: str) -> bool:
+def _send_sms(destination: str, message: str, media_url: str | None = None) -> bool:
     normalized_destination = _normalize_us_phone(destination)
     if not normalized_destination:
         print(f"SMS skipped; invalid destination phone number: {destination}")
@@ -37,6 +37,8 @@ def _send_sms(destination: str, message: str) -> bool:
         "To": normalized_destination,
         "Body": message,
     }
+    if media_url:
+        payload["MediaUrl"] = media_url
 
     if settings.twilio_messaging_service_sid:
         payload["MessagingServiceSid"] = settings.twilio_messaging_service_sid
@@ -135,6 +137,7 @@ def send_customer_invoice_notification(
     quote_id: int,
     invoice_id: int,
     balance_due: float,
+    media_url: str | None = None,
 ) -> bool:
     message = (
         f"Hanks Paints: Invoice #{invoice_id} for Quote #{quote_id} is ready. "
@@ -142,7 +145,7 @@ def send_customer_invoice_notification(
         f"https://hanks-paints.com/portal?quote={quote_id} "
         "Use your phone or email to open private details. Reply STOP to opt out."
     )
-    return _send_sms(phone, message)
+    return _send_sms(phone, message, media_url=media_url)
 
 
 def send_customer_estimate_notification(

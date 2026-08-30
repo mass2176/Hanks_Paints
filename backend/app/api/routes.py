@@ -14,6 +14,7 @@ from app.models.domain import (
 from app.schemas.quote import AppointmentRequestIn, EstimateApprovalIn, EstimateCreate, InspectionCompleteIn, MessageIn, PaymentIn, ProductCheckoutIn, QuoteCreate, QuoteOut, ShopLoginIn, ShopUserCreateIn
 from app.services.activity import log_activity
 from app.services.auth import create_access_token, get_current_shop_user, hash_password, public_user, require_admin, verify_password
+from app.services.invoice_preview import render_invoice_preview
 from app.services.notifications import (
     send_customer_estimate_notification,
     send_customer_notification,
@@ -871,7 +872,7 @@ def record_payment(invoice_id: int, payload: PaymentIn, db: Session = Depends(ge
     return {"invoice_status": inv.status, "amount_paid": inv.amount_paid, "balance_due": max(inv.total_due - inv.amount_paid, 0)}
 
 @router.post("/invoices/{invoice_id}/send-sms")
-def send_invoice_sms(invoice_id: int, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
+def send_invoice_sms(invoice_id: int, request: Request, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
     invoice = db.get(Invoice, invoice_id)
     if not invoice:
         raise HTTPException(404, "Invoice not found")
@@ -889,17 +890,28 @@ def send_invoice_sms(invoice_id: int, db: Session = Depends(get_db), user: ShopU
         raise HTTPException(400, "Customer phone number is missing")
 
     balance_due = max(invoice.total_due - invoice.amount_paid, 0)
+    vehicle = db.get(Vehicle, quote.vehicle_id)
+    payments = db.query(Payment).filter(Payment.invoice_id == invoice.id).order_by(Payment.created_at.asc()).all()
+    preview_path = render_invoice_preview(
+        invoice=invoice,
+        quote=quote,
+        customer=customer,
+        vehicle=vehicle,
+        payments=payments,
+    )
+    media_url = f"{str(request.base_url).rstrip('/')}/media/{preview_path}"
     sent = send_customer_invoice_notification(
         phone=customer.phone,
         quote_id=quote.id,
         invoice_id=invoice.id,
         balance_due=balance_due,
+        media_url=media_url,
     )
     if not sent:
         raise HTTPException(503, "Invoice text could not be sent. Check Twilio configuration and the customer phone number.")
 
-    log_activity(db, quote_id=quote.id, job_id=job.id, event="Invoice SMS sent", actor=user.role.value, detail=customer.phone)
-    return {"sent": True, "phone": customer.phone, "invoice_id": invoice.id}
+    log_activity(db, quote_id=quote.id, job_id=job.id, event="Invoice MMS sent", actor=user.role.value, detail=customer.phone)
+    return {"sent": True, "phone": customer.phone, "invoice_id": invoice.id, "media_url": media_url}
 
 @router.get("/dashboard")
 def dashboard(db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
