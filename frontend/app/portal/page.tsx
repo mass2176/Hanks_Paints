@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import MediaPicker, { validateMediaFiles } from '../../components/MediaPicker'
+import { PrintableEstimate } from '../../components/PrintableDocuments'
 import { apiBaseUrl } from '../../lib/config'
 import { copyEstimateLink, printEstimate, shareEstimate } from '../../lib/estimateShare'
 
@@ -334,13 +335,18 @@ export default function Page() {
                     <button className="btn secondary" type="button" onClick={() => shareEstimateAction(estimate)}>
                       Share Estimate
                     </button>
-                    <button className="btn secondary" type="button" onClick={printEstimate}>
+                    <button className="btn secondary" type="button" onClick={() => printEstimate(`portal-estimate-print-${estimate.id}`)}>
                       Print Estimate
                     </button>
                     <button className="btn secondary" type="button" onClick={copyEstimateAction}>
                       Copy Link
                     </button>
                   </div>
+                  <PrintableEstimate
+                    data={data}
+                    estimate={estimate}
+                    id={`portal-estimate-print-${estimate.id}`}
+                  />
                 </div>
               ))}
             </div>

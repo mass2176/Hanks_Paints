@@ -16,6 +16,7 @@ from app.services.activity import log_activity
 from app.services.auth import create_access_token, get_current_shop_user, hash_password, public_user, require_admin, verify_password
 from app.services.notifications import (
     send_customer_notification,
+    send_customer_invoice_notification,
     send_customer_quote_received_notification,
     send_shop_new_quote_notification,
     send_shop_quote_not_started_reminder,
@@ -838,6 +839,37 @@ def record_payment(invoice_id: int, payload: PaymentIn, db: Session = Depends(ge
     db.add(p); db.commit()
     log_activity(db, job_id=inv.job_id, event="Payment recorded", actor="employee", detail=f"{payload.method}: {payload.amount}")
     return {"invoice_status": inv.status, "amount_paid": inv.amount_paid, "balance_due": max(inv.total_due - inv.amount_paid, 0)}
+
+@router.post("/invoices/{invoice_id}/send-sms")
+def send_invoice_sms(invoice_id: int, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
+    invoice = db.get(Invoice, invoice_id)
+    if not invoice:
+        raise HTTPException(404, "Invoice not found")
+
+    job = db.get(Job, invoice.job_id)
+    if not job:
+        raise HTTPException(404, "Job not found")
+
+    quote = db.get(QuoteRequest, job.quote_id)
+    if not quote:
+        raise HTTPException(404, "Quote not found")
+
+    customer = db.get(Customer, quote.customer_id)
+    if not customer or not customer.phone:
+        raise HTTPException(400, "Customer phone number is missing")
+
+    balance_due = max(invoice.total_due - invoice.amount_paid, 0)
+    sent = send_customer_invoice_notification(
+        phone=customer.phone,
+        quote_id=quote.id,
+        invoice_id=invoice.id,
+        balance_due=balance_due,
+    )
+    if not sent:
+        raise HTTPException(503, "Invoice text could not be sent. Check Twilio configuration and the customer phone number.")
+
+    log_activity(db, quote_id=quote.id, job_id=job.id, event="Invoice SMS sent", actor=user.role.value, detail=customer.phone)
+    return {"sent": True, "phone": customer.phone, "invoice_id": invoice.id}
 
 @router.get("/dashboard")
 def dashboard(db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):

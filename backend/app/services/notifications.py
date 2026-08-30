@@ -127,3 +127,19 @@ def send_shop_product_order_notification(
         f"Ship to: {shipping_summary or 'see Stripe'}. Stripe session: {session_id}"
     )
     return _send_sms(settings.shop_notification_phone, message)
+
+
+def send_customer_invoice_notification(
+    *,
+    phone: str,
+    quote_id: int,
+    invoice_id: int,
+    balance_due: float,
+) -> bool:
+    message = (
+        f"Hanks Paints: Invoice #{invoice_id} for Quote #{quote_id} is ready. "
+        f"Balance due: ${balance_due:.2f}. View it here: "
+        f"https://hanks-paints.com/portal?quote={quote_id} "
+        "Use your phone or email to open private details. Reply STOP to opt out."
+    )
+    return _send_sms(phone, message)

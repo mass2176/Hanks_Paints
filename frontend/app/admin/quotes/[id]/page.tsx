@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react'
 import { useParams } from 'next/navigation'
+import { PrintableEstimate, PrintableInvoice } from '../../../../components/PrintableDocuments'
 import { apiBaseUrl } from '../../../../lib/config'
 import { copyEstimateLink, printEstimate, shareEstimate } from '../../../../lib/estimateShare'
 import { loadCurrentShopUser, shopFetch, type ShopUser } from '../../../../lib/shopAuth'
@@ -282,6 +283,17 @@ export default function QuoteDetail() {
     }
   }
 
+  async function textInvoiceAction(invoice: any) {
+    const phone = data?.customer?.phone || ''
+    const confirmed = window.confirm(`Text invoice #${invoice.id} to ${phone}?`)
+    if (!confirmed) return
+
+    await run(async () => {
+      const res = await shopFetch(`/invoices/${invoice.id}/send-sms`, { method: 'POST' })
+      if (!res.ok) throw new Error(await res.text())
+    }, `Invoice #${invoice.id} text sent to ${phone}.`)
+  }
+
   return (
     <main className="section">
       <h1>Quote #{id}</h1>
@@ -450,7 +462,7 @@ export default function QuoteDetail() {
                   <button className="btn secondary" type="button" onClick={() => shareEstimateAction(existingEstimate)}>
                     Share Estimate
                   </button>
-                  <button className="btn secondary" type="button" onClick={printEstimate}>
+                  <button className="btn secondary" type="button" onClick={() => printEstimate(`estimate-print-${existingEstimate.id}`)}>
                     Print Estimate
                   </button>
                   <button className="btn secondary" type="button" onClick={copyEstimateAction}>
@@ -460,6 +472,11 @@ export default function QuoteDetail() {
                     Edit Estimate
                   </button>
                 </div>
+                <PrintableEstimate
+                  data={data}
+                  estimate={existingEstimate}
+                  id={`estimate-print-${existingEstimate.id}`}
+                />
               </CollapsibleCard>
             )}
 
@@ -617,6 +634,20 @@ export default function QuoteDetail() {
               {latestInvoice && (
                 <CollapsibleCard title="Record Payment">
                   <p className="muted">Invoice #{latestInvoice.id}: {latestInvoice.status}, balance {money(latestInvoice.balance_due)}</p>
+                  <button
+                    className="btn secondary"
+                    type="button"
+                    onClick={() => printEstimate(`invoice-print-${latestInvoice.id}`)}
+                  >
+                    Print Invoice
+                  </button>
+                  <button
+                    className="btn secondary"
+                    type="button"
+                    onClick={() => textInvoiceAction(latestInvoice)}
+                  >
+                    Text Invoice
+                  </button>
                   <form
                     onSubmit={(e) => {
                     e.preventDefault()
@@ -653,6 +684,11 @@ export default function QuoteDetail() {
                       Record Payment
                     </button>
                   </form>
+                  <PrintableInvoice
+                    data={data}
+                    id={`invoice-print-${latestInvoice.id}`}
+                    invoice={latestInvoice}
+                  />
                 </CollapsibleCard>
               )}
             </div>

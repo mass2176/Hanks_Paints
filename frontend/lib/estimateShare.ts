@@ -53,6 +53,26 @@ export async function copyEstimateLink(quoteId: number | string) {
   return 'Estimate link copied.'
 }
 
-export function printEstimate() {
+export function printEstimate(documentId?: string) {
+  if (!documentId) {
+    window.print()
+    return
+  }
+
+  const documentElement = window.document.getElementById(documentId)
+  if (!documentElement) {
+    window.print()
+    return
+  }
+
+  documentElement.classList.add('print-active')
+
+  const cleanup = () => {
+    documentElement.classList.remove('print-active')
+    window.removeEventListener('afterprint', cleanup)
+  }
+
+  window.addEventListener('afterprint', cleanup)
   window.print()
+  window.setTimeout(cleanup, 1000)
 }
