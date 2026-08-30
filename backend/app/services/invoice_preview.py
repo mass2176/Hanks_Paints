@@ -63,7 +63,9 @@ def render_invoice_preview(
     vehicle,
     payments,
 ) -> str:
-    os.makedirs(os.path.join(settings.media_root, "invoices"), exist_ok=True)
+    token = uuid.uuid4().hex
+    preview_dir = os.path.join(settings.media_root, "invoices", token)
+    os.makedirs(preview_dir, exist_ok=True)
 
     width = 1200
     height = 1650
@@ -195,8 +197,6 @@ def render_invoice_preview(
         90,
     )
 
-    filename = f"invoice-{invoice.id}-{uuid.uuid4().hex}.jpg"
-    relative_path = os.path.join("invoices", filename)
-    output_path = os.path.join(settings.media_root, relative_path)
+    output_path = os.path.join(preview_dir, "invoice.jpg")
     image.save(output_path, "JPEG", quality=88, optimize=True)
-    return relative_path.replace(os.sep, "/")
+    return token

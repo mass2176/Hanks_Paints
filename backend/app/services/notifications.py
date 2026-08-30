@@ -3,6 +3,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import re
+import json
 
 from app.core.config import settings
 
@@ -53,8 +54,17 @@ def _send_sms(destination: str, message: str, media_url: str | None = None) -> b
 
     try:
         with urllib.request.urlopen(request, timeout=10) as response:
-            response.read()
-            print(f"SMS sent to {normalized_destination}: {response.status}")
+            response_body = response.read().decode("utf-8", errors="replace")
+            media_count = None
+            message_sid = None
+            try:
+                response_json = json.loads(response_body)
+                media_count = response_json.get("num_media")
+                message_sid = response_json.get("sid")
+            except json.JSONDecodeError:
+                pass
+            media_detail = f", media_url={media_url}, twilio_num_media={media_count}" if media_url else ""
+            print(f"SMS sent to {normalized_destination}: {response.status}, sid={message_sid}{media_detail}")
             return 200 <= response.status < 300
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")

@@ -1,6 +1,7 @@
 import os, shutil, uuid
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 import stripe
@@ -88,6 +89,13 @@ def require_maintenance_secret(request: Request):
     supplied = request.headers.get("x-maintenance-secret") or request.query_params.get("secret")
     if supplied != settings.maintenance_secret:
         raise HTTPException(401, "Invalid maintenance secret")
+
+def backend_origin(request: Request):
+    forwarded_proto = request.headers.get("x-forwarded-proto")
+    forwarded_host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+    if forwarded_proto and forwarded_host:
+        return f"{forwarded_proto}://{forwarded_host}".rstrip("/")
+    return str(request.base_url).rstrip("/")
 
 @router.post("/auth/login")
 def shop_login(payload: ShopLoginIn, db: Session = Depends(get_db)):
@@ -892,14 +900,14 @@ def send_invoice_sms(invoice_id: int, request: Request, db: Session = Depends(ge
     balance_due = max(invoice.total_due - invoice.amount_paid, 0)
     vehicle = db.get(Vehicle, quote.vehicle_id)
     payments = db.query(Payment).filter(Payment.invoice_id == invoice.id).order_by(Payment.created_at.asc()).all()
-    preview_path = render_invoice_preview(
+    preview_token = render_invoice_preview(
         invoice=invoice,
         quote=quote,
         customer=customer,
         vehicle=vehicle,
         payments=payments,
     )
-    media_url = f"{str(request.base_url).rstrip('/')}/media/{preview_path}"
+    media_url = f"{backend_origin(request)}/api/invoice-previews/{preview_token}/invoice.jpg"
     sent = send_customer_invoice_notification(
         phone=customer.phone,
         quote_id=quote.id,
@@ -912,6 +920,21 @@ def send_invoice_sms(invoice_id: int, request: Request, db: Session = Depends(ge
 
     log_activity(db, quote_id=quote.id, job_id=job.id, event="Invoice MMS sent", actor=user.role.value, detail=customer.phone)
     return {"sent": True, "phone": customer.phone, "invoice_id": invoice.id, "media_url": media_url}
+
+@router.get("/invoice-previews/{preview_token}/invoice.jpg")
+def get_invoice_preview(preview_token: str):
+    if len(preview_token) != 32 or not all(character in "0123456789abcdef" for character in preview_token):
+        raise HTTPException(404, "Invoice preview not found")
+
+    path = os.path.join(settings.media_root, "invoices", preview_token, "invoice.jpg")
+    if not os.path.exists(path):
+        raise HTTPException(404, "Invoice preview not found")
+
+    return FileResponse(
+        path,
+        media_type="image/jpeg",
+        headers={"Content-Disposition": 'inline; filename="invoice.jpg"'},
+    )
 
 @router.get("/dashboard")
 def dashboard(db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
