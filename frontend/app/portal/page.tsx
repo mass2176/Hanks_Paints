@@ -16,6 +16,7 @@ export default function Page() {
   const [data, setData] = useState<any>(null)
   const [message, setMessage] = useState('')
   const [appointment, setAppointment] = useState('')
+  const [inspectionSlots, setInspectionSlots] = useState<any[]>([])
   const [files, setFiles] = useState<File[]>([])
   const [typedLegalName, setTypedLegalName] = useState('')
   const [approvalAcknowledged, setApprovalAcknowledged] = useState(false)
@@ -50,8 +51,12 @@ export default function Page() {
       }
 
       setData(body)
+      const slotsRes = await fetch(`${apiBaseUrl}/quotes/${encodeURIComponent(quoteId)}/inspection-slots`)
+      const slotsBody = await slotsRes.json()
+      setInspectionSlots(slotsRes.ok ? slotsBody : [])
     } catch (err: any) {
       setData(null)
+      setInspectionSlots([])
       setError(err.message)
     } finally {
       setLoading(false)
@@ -87,11 +92,11 @@ export default function Page() {
   async function requestAppointment(e: React.FormEvent) {
     e.preventDefault()
     await run(async () => {
-      const res = await fetch(`${apiBaseUrl}/quotes/${data.quote.id}/appointments`, {
+      const res = await fetch(`${apiBaseUrl}/quotes/${data.quote.id}/appointments?contact=${encodeURIComponent(contact)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          requested_start: new Date(appointment).toISOString(),
+          requested_start: appointment,
           notes: 'Requested from customer portal',
         }),
       })
@@ -285,13 +290,26 @@ export default function Page() {
             </form>
 
             <form className="card" onSubmit={requestAppointment}>
-              <h2>Request Inspection</h2>
+              <h2>Schedule Inspection</h2>
+              <p className="muted">
+                Choose one of the shop&apos;s available times for an on-site vehicle inspection.
+              </p>
               <div className="field">
-                <label>Preferred Date / Time</label>
-                <input type="datetime-local" value={appointment} onChange={(e) => setAppointment(e.target.value)} required />
+                <label>Available Inspection Time</label>
+                <select value={appointment} onChange={(e) => setAppointment(e.target.value)} required>
+                  <option value="">Select an available time</option>
+                  {inspectionSlots.map((slot) => (
+                    <option key={slot.start} value={slot.start}>
+                      {slot.label}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <button className="btn" type="submit">
-                Request Appointment
+              {!inspectionSlots.length && (
+                <p className="muted">No inspection times are currently available. Message the shop to coordinate a time.</p>
+              )}
+              <button className="btn" type="submit" disabled={!appointment || !inspectionSlots.length}>
+                Schedule Appointment
               </button>
             </form>
 

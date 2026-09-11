@@ -108,6 +108,16 @@ class Appointment(Base):
     status: Mapped[AppointmentStatus] = mapped_column(Enum(AppointmentStatus), default=AppointmentStatus.requested)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+class InspectionAvailability(Base):
+    __tablename__ = "inspection_availability"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    weekday: Mapped[int] = mapped_column(Integer)  # Monday=0, Sunday=6
+    start_time: Mapped[str] = mapped_column(String(5))
+    end_time: Mapped[str] = mapped_column(String(5))
+    slot_minutes: Mapped[int] = mapped_column(Integer, default=30)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
 class Estimate(Base):
     __tablename__ = "estimates"
     id: Mapped[int] = mapped_column(primary_key=True)

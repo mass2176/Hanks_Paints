@@ -76,12 +76,19 @@ export default function QuoteDetail() {
   const [invoiceTotal, setInvoiceTotal] = useState('')
   const [paymentAmount, setPaymentAmount] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('Cash')
+  const [inspectionSlots, setInspectionSlots] = useState<any[]>([])
+  const [selectedInspectionSlot, setSelectedInspectionSlot] = useState('')
+  const [inspectionNotes, setInspectionNotes] = useState('')
 
   async function load() {
     const res = await shopFetch(`/quotes/${id}`)
     const body = await res.json()
     if (!res.ok) throw new Error(body.detail || 'Quote load failed')
     setData(body)
+
+    const slotsRes = await fetch(`${apiBaseUrl}/quotes/${id}/inspection-slots`)
+    const slotsBody = await slotsRes.json()
+    setInspectionSlots(slotsRes.ok ? slotsBody : [])
   }
 
   async function run(action: () => Promise<void>, done: string) {
@@ -215,6 +222,35 @@ export default function QuoteDetail() {
       })
       if (!res.ok) throw new Error(await res.text())
     }, 'Inspection marked complete.')
+  }
+
+  async function requestInspectionAction() {
+    const phone = data?.customer?.phone || ''
+    const confirmed = window.confirm(`Text inspection scheduling link to ${phone}?`)
+    if (!confirmed) return
+
+    await run(async () => {
+      const res = await shopFetch(`/quotes/${id}/request-inspection`, { method: 'POST' })
+      if (!res.ok) throw new Error(await res.text())
+    }, `Inspection scheduling text sent to ${phone}.`)
+  }
+
+  async function scheduleInspectionAction(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+
+    await run(async () => {
+      const res = await shopFetch(`/quotes/${id}/shop-appointments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requested_start: selectedInspectionSlot,
+          notes: inspectionNotes || 'Scheduled by shop',
+        }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      setSelectedInspectionSlot('')
+      setInspectionNotes('')
+    }, 'Inspection appointment scheduled.')
   }
 
   function updateEstimateLineItem(index: number, field: 'description' | 'amount', value: string) {
@@ -365,6 +401,15 @@ export default function QuoteDetail() {
                     onClick={markInspectionComplete}
                   >
                     Mark Inspection Complete
+                  </button>
+                )}
+                {!inspectionComplete && !inspectionLocked && (
+                  <button
+                    className="btn secondary"
+                    onClick={requestInspectionAction}
+                    type="button"
+                  >
+                    Request On-Site Inspection
                   </button>
                 )}
               </div>
@@ -556,25 +601,60 @@ export default function QuoteDetail() {
 
           <div className="grid" style={{ marginTop: 18 }}>
             <CollapsibleCard title="Appointments">
-              {data.appointments.map((item: any) => (
-                <p className="muted" key={item.id}>
-                  #{item.id} {item.status} - {new Date(item.requested_start).toLocaleString()}
-                  {item.status !== 'Appointment Confirmed' && (
-                    <button
-                          className="btn secondary"
-                          style={{ marginLeft: 12 }}
-                          onClick={() =>
-                            run(async () => {
-                              const res = await shopFetch(`/appointments/${item.id}/confirm`, { method: 'POST' })
-                              if (!res.ok) throw new Error(await res.text())
-                            }, 'Appointment confirmed.')
-                      }
-                    >
-                      Confirm
-                    </button>
-                  )}
-                </p>
-              ))}
+              <form onSubmit={scheduleInspectionAction}>
+                <div className="field">
+                  <label>Available Inspection Time</label>
+                  <select value={selectedInspectionSlot} onChange={(e) => setSelectedInspectionSlot(e.target.value)} required>
+                    <option value="">Select an available time</option>
+                    {inspectionSlots.map((slot) => (
+                      <option key={slot.start} value={slot.start}>
+                        {slot.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Appointment Notes</label>
+                  <textarea rows={3} value={inspectionNotes} onChange={(e) => setInspectionNotes(e.target.value)} />
+                </div>
+                {!inspectionSlots.length && (
+                  <p className="muted">No inspection availability is configured or all upcoming slots are booked.</p>
+                )}
+                <button className="btn" disabled={!selectedInspectionSlot || !inspectionSlots.length} type="submit">
+                  Schedule Inspection
+                </button>
+              </form>
+
+              <div className="user-list" style={{ marginTop: 18 }}>
+                {data.appointments.length ? data.appointments.map((item: any) => (
+                  <div className="user-row" key={item.id}>
+                    <p>
+                      <b>{item.status}</b>
+                      <br />
+                      <span className="muted">
+                        #{item.id} - {new Date(item.confirmed_start || item.requested_start).toLocaleString()}
+                        {item.notes ? ` - ${item.notes}` : ''}
+                      </span>
+                    </p>
+                    {item.status !== 'Appointment Confirmed' && (
+                      <button
+                        className="btn secondary"
+                        onClick={() =>
+                          run(async () => {
+                            const res = await shopFetch(`/appointments/${item.id}/confirm`, { method: 'POST' })
+                            if (!res.ok) throw new Error(await res.text())
+                          }, 'Appointment confirmed.')
+                        }
+                        type="button"
+                      >
+                        Confirm
+                      </button>
+                    )}
+                  </div>
+                )) : (
+                  <p className="muted">No inspection appointments yet.</p>
+                )}
+              </div>
             </CollapsibleCard>
 
             <CollapsibleCard title="Media">

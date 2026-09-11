@@ -175,3 +175,33 @@ def send_customer_estimate_notification(
         "Use your phone or email to open private details. Reply STOP to opt out."
     )
     return _send_sms(phone, message, media_url=media_url)
+
+
+def send_customer_inspection_request_notification(*, phone: str, quote_id: int) -> bool:
+    message = (
+        f"Hanks Paints: An on-site inspection is needed before Quote #{quote_id} can be finalized. "
+        f"Choose an available shop time here: https://hanks-paints.com/portal?quote={quote_id} "
+        "Use your phone or email to open private details. Reply STOP to opt out."
+    )
+    return _send_sms(phone, message)
+
+
+def send_customer_inspection_scheduled_notification(*, phone: str, quote_id: int, scheduled_for: str) -> bool:
+    message = (
+        f"Hanks Paints: Your on-site inspection for Quote #{quote_id} is scheduled for {scheduled_for}. "
+        "Reply STOP to opt out."
+    )
+    return _send_sms(phone, message)
+
+
+def send_shop_inspection_scheduled_notification(
+    *,
+    quote_id: int,
+    customer_name: str,
+    scheduled_for: str,
+) -> bool:
+    message = (
+        f"Hanks Paints: Inspection scheduled for Quote #{quote_id} from {customer_name} "
+        f"on {scheduled_for}. Open the admin dashboard: https://hanks-paints.com/admin"
+    )
+    return _send_sms(settings.shop_notification_phone, message)
