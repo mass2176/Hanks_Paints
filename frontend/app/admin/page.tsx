@@ -471,6 +471,11 @@ export default function Admin() {
 
           <div className="card">
             <h2>Inspection Calendar</h2>
+            <div className="btns" style={{ marginTop: 0, marginBottom: 18 }}>
+              <a className="btn secondary" href="/admin/calendar">
+                Open TV Calendar
+              </a>
+            </div>
             <div className="user-list">
               {appointments.length ? appointments.map((appointment) => (
                 <div className="user-row" key={appointment.id}>
