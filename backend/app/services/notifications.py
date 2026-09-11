@@ -205,3 +205,26 @@ def send_shop_inspection_scheduled_notification(
         f"on {scheduled_for}. Open the admin dashboard: https://hanks-paints.com/admin"
     )
     return _send_sms(settings.shop_notification_phone, message)
+
+
+def send_customer_inspection_reminder_notification(*, phone: str, quote_id: int, scheduled_for: str) -> bool:
+    message = (
+        f"Hanks Paints: Reminder, your on-site inspection for Quote #{quote_id} is in about "
+        f"{settings.inspection_reminder_minutes} minutes at {scheduled_for}. Reply STOP to opt out."
+    )
+    return _send_sms(phone, message)
+
+
+def send_shop_inspection_reminder_notification(
+    *,
+    quote_id: int,
+    customer_name: str,
+    vehicle: str,
+    scheduled_for: str,
+) -> bool:
+    message = (
+        f"Hanks Paints: Inspection reminder. Quote #{quote_id} for {customer_name} is in about "
+        f"{settings.inspection_reminder_minutes} minutes at {scheduled_for}. "
+        f"Vehicle: {vehicle or 'not provided'}. Open: https://hanks-paints.com/admin/quotes/{quote_id}"
+    )
+    return _send_sms(settings.shop_notification_phone, message)

@@ -19,11 +19,13 @@ from app.services.invoice_preview import render_estimate_preview, render_invoice
 from app.services.notifications import (
     send_customer_estimate_notification,
     send_customer_inspection_request_notification,
+    send_customer_inspection_reminder_notification,
     send_customer_inspection_scheduled_notification,
     send_customer_notification,
     send_customer_invoice_notification,
     send_customer_quote_received_notification,
     send_shop_inspection_scheduled_notification,
+    send_shop_inspection_reminder_notification,
     send_shop_new_quote_notification,
     send_shop_quote_not_started_reminder,
     send_shop_product_order_notification,
@@ -64,6 +66,8 @@ FLAT_RATE_SHIPPING = {
 }
 
 QUOTE_REVIEW_REMINDER_EVENT = "Quote review reminder SMS sent"
+SHOP_INSPECTION_REMINDER_EVENT = "Shop inspection reminder SMS sent"
+CUSTOMER_INSPECTION_REMINDER_EVENT = "Customer inspection reminder SMS sent"
 
 def frontend_origin(request: Request):
     return (request.headers.get("origin") or settings.public_base_url).rstrip("/")
@@ -602,6 +606,96 @@ def send_quote_review_reminders(request: Request, db: Session = Depends(get_db))
         else:
             skipped += 1
             results.append({"quote_id": quote.id, "status": "sms_not_sent"})
+
+    return {"checked": checked, "sent": sent, "skipped": skipped, "results": results}
+
+@router.post("/maintenance/inspection-reminders")
+def send_inspection_reminders(request: Request, db: Session = Depends(get_db)):
+    require_maintenance_secret(request)
+
+    reminder_minutes = max(1, settings.inspection_reminder_minutes)
+    now = datetime.now()
+    window_end = now + timedelta(minutes=reminder_minutes)
+    appointments = (
+        db.query(Appointment)
+        .filter(Appointment.status == AppointmentStatus.confirmed)
+        .filter(Appointment.confirmed_start >= now)
+        .filter(Appointment.confirmed_start <= window_end)
+        .order_by(Appointment.confirmed_start.asc())
+        .all()
+    )
+
+    checked = len(appointments)
+    sent = 0
+    skipped = 0
+    results = []
+
+    for appointment in appointments:
+        quote = db.get(QuoteRequest, appointment.quote_id)
+        if not quote:
+            skipped += 1
+            results.append({"appointment_id": appointment.id, "status": "skipped_missing_quote"})
+            continue
+
+        customer = db.get(Customer, quote.customer_id)
+        vehicle = db.get(Vehicle, quote.vehicle_id)
+        customer_name = customer.full_name if customer else "Unknown Customer"
+        vehicle_label = f"{vehicle.year} {vehicle.make} {vehicle.model}" if vehicle else ""
+        scheduled_for = format_appointment_datetime(appointment.confirmed_start)
+        detail = f"appointment_id={appointment.id}"
+
+        shop_already_sent = (
+            db.query(Activity)
+            .filter(Activity.quote_id == quote.id, Activity.event == SHOP_INSPECTION_REMINDER_EVENT)
+            .filter(Activity.detail == detail)
+            .first()
+        )
+        customer_already_sent = (
+            db.query(Activity)
+            .filter(Activity.quote_id == quote.id, Activity.event == CUSTOMER_INSPECTION_REMINDER_EVENT)
+            .filter(Activity.detail == detail)
+            .first()
+        )
+
+        appointment_result = {"appointment_id": appointment.id, "quote_id": quote.id, "shop": "skipped", "customer": "skipped"}
+
+        if not shop_already_sent:
+            if send_shop_inspection_reminder_notification(
+                quote_id=quote.id,
+                customer_name=customer_name,
+                vehicle=vehicle_label,
+                scheduled_for=scheduled_for,
+            ):
+                log_activity(db, quote_id=quote.id, event=SHOP_INSPECTION_REMINDER_EVENT, actor="system", detail=detail)
+                sent += 1
+                appointment_result["shop"] = "sent"
+            else:
+                skipped += 1
+                appointment_result["shop"] = "sms_not_sent"
+
+        if customer and customer.phone and not customer_already_sent:
+            if send_customer_inspection_reminder_notification(
+                phone=customer.phone,
+                quote_id=quote.id,
+                scheduled_for=scheduled_for,
+            ):
+                log_activity(db, quote_id=quote.id, event=CUSTOMER_INSPECTION_REMINDER_EVENT, actor="system", detail=detail)
+                sent += 1
+                appointment_result["customer"] = "sent"
+            else:
+                skipped += 1
+                appointment_result["customer"] = "sms_not_sent"
+        elif not customer or not customer.phone:
+            skipped += 1
+            appointment_result["customer"] = "skipped_missing_customer_phone"
+
+        if shop_already_sent and customer_already_sent:
+            skipped += 1
+            appointment_result["status"] = "skipped_already_reminded"
+        else:
+            appointment_result["status"] = "processed"
+
+        results.append(appointment_result)
 
     return {"checked": checked, "sent": sent, "skipped": skipped, "results": results}
 

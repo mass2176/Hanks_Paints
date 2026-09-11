@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     sms_notifications_enabled: bool = False
     shop_notification_phone: str = "+17652527998"
     quote_review_reminder_hours: int = 24
+    inspection_reminder_minutes: int = 15
     maintenance_secret: str | None = None
     twilio_account_sid: str | None = None
     twilio_api_key: str | None = None
