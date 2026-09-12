@@ -16,6 +16,19 @@ type InspectionAppointment = {
   notes: string | null
 }
 
+type ShopNotification = {
+  id: number
+  quote_id: number
+  customer_name: string
+  customer_phone: string
+  vehicle: string
+  service_type: string
+  status: string
+  body: string
+  created_at: string
+  display_created_at: string
+}
+
 const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
 function startOfWeek(value: Date) {
@@ -62,6 +75,7 @@ function dateLabel(value: Date) {
 export default function InspectionCalendar() {
   const [user, setUser] = useState<ShopUser | null>(null)
   const [appointments, setAppointments] = useState<InspectionAppointment[]>([])
+  const [notifications, setNotifications] = useState<ShopNotification[]>([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
@@ -74,18 +88,30 @@ export default function InspectionCalendar() {
     setLastUpdated(new Date())
   }
 
+  async function loadNotifications() {
+    const res = await shopFetch('/shop-notifications')
+    const body = await res.json()
+    if (!res.ok) throw new Error(body.detail || 'Shop notifications load failed')
+    setNotifications(body)
+    setLastUpdated(new Date())
+  }
+
+  async function loadBoard() {
+    await Promise.all([loadAppointments(), loadNotifications()])
+  }
+
   useEffect(() => {
     loadCurrentShopUser()
       .then((currentUser) => {
         setUser(currentUser)
-        return loadAppointments()
+        return loadBoard()
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
 
     const interval = window.setInterval(() => {
-      loadAppointments().catch((err) => setError(err.message))
-    }, 60000)
+      loadBoard().catch((err) => setError(err.message))
+    }, 15000)
 
     return () => window.clearInterval(interval)
   }, [])
@@ -131,6 +157,10 @@ export default function InspectionCalendar() {
               <p className="calendar-kicker">Today</p>
               <h2>{todaysAppointments.length} Scheduled Inspection{todaysAppointments.length === 1 ? '' : 's'}</h2>
             </div>
+            <div className={`notification-count ${notifications.length ? 'notification-count-active' : ''}`}>
+              <span>{notifications.length}</span>
+              <small>Need Response</small>
+            </div>
             <a className="btn secondary" href="/admin">
               Dashboard
             </a>
@@ -164,6 +194,24 @@ export default function InspectionCalendar() {
                 </div>
               )
             })}
+          </section>
+
+          <section className="calendar-upcoming">
+            <h2>Needs Response</h2>
+            <div className="notification-list">
+              {notifications.length ? notifications.map((notification) => (
+                <a className="notification-row" href={`/admin/quotes/${notification.quote_id}`} key={notification.id}>
+                  <div>
+                    <b>Quote #{notification.quote_id} - {notification.customer_name}</b>
+                    <span>{notification.vehicle || notification.service_type}</span>
+                    <small>{notification.display_created_at}</small>
+                  </div>
+                  <p>{notification.body}</p>
+                </a>
+              )) : (
+                <p className="calendar-no-events">No customer messages are waiting on a shop response.</p>
+              )}
+            </div>
           </section>
 
           <section className="calendar-upcoming">

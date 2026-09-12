@@ -152,6 +152,23 @@ def serialize_appointment(row: Appointment, db: Session):
         "notes": row.notes,
     }
 
+def serialize_shop_notification(message: Message, db: Session):
+    quote = db.get(QuoteRequest, message.quote_id) if message.quote_id else None
+    customer = db.get(Customer, quote.customer_id) if quote else None
+    vehicle = db.get(Vehicle, quote.vehicle_id) if quote else None
+    return {
+        "id": message.id,
+        "quote_id": message.quote_id,
+        "customer_name": customer.full_name if customer else "Unknown Customer",
+        "customer_phone": customer.phone if customer else "",
+        "vehicle": f"{vehicle.year} {vehicle.make} {vehicle.model}" if vehicle else "",
+        "service_type": quote.service_type if quote else "",
+        "status": quote.status.value if quote else "",
+        "body": message.body,
+        "created_at": message.created_at,
+        "display_created_at": message.created_at.strftime("%a %b %d at %I:%M %p").replace(" 0", " "),
+    }
+
 def build_inspection_slots(db: Session, days: int = 30):
     rules = (
         db.query(InspectionAvailability)
@@ -310,6 +327,40 @@ def list_inspection_appointments(db: Session = Depends(get_db), user: ShopUser =
         .all()
     )
     return [serialize_appointment(row, db) for row in rows]
+
+@router.get("/shop-notifications")
+def list_shop_notifications(db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
+    rows = (
+        db.query(Message)
+        .filter(Message.sender_type == "customer")
+        .filter(Message.quote_id.isnot(None))
+        .order_by(Message.created_at.desc())
+        .limit(200)
+        .all()
+    )
+
+    notifications = []
+    seen_quote_ids = set()
+    for message in rows:
+        if message.quote_id in seen_quote_ids:
+            continue
+        seen_quote_ids.add(message.quote_id)
+
+        shop_reply = (
+            db.query(Message)
+            .filter(Message.quote_id == message.quote_id)
+            .filter(Message.sender_type == "shop")
+            .filter(Message.created_at > message.created_at)
+            .first()
+        )
+        if shop_reply:
+            continue
+
+        notifications.append(serialize_shop_notification(message, db))
+        if len(notifications) >= 12:
+            break
+
+    return notifications
 
 def quote_snapshot(db: Session, quote_id: int, *, public: bool = False):
     quote = db.get(QuoteRequest, quote_id)
