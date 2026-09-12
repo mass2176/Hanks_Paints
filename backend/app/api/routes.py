@@ -1,3 +1,4 @@
+import logging
 import os, shutil, uuid
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -38,6 +39,7 @@ from app.services.notifications import (
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 FINAL_ESTIMATE_AUTHORIZATION_TEXT = (
     "I approve this final estimate and authorize Hanks Paints to begin the listed repairs. "
@@ -716,6 +718,14 @@ def send_inspection_reminders(request: Request, db: Session = Depends(get_db)):
     now = shop_now()
     window_start = now - timedelta(minutes=5)
     window_end = now + timedelta(minutes=reminder_minutes)
+    logger.info(
+        "Inspection reminder check started: shop_now=%s timezone=%s window_start=%s window_end=%s reminder_minutes=%s",
+        now.isoformat(),
+        settings.shop_timezone,
+        window_start.isoformat(),
+        window_end.isoformat(),
+        reminder_minutes,
+    )
     appointments = (
         db.query(Appointment)
         .filter(Appointment.status == AppointmentStatus.confirmed)
@@ -729,12 +739,15 @@ def send_inspection_reminders(request: Request, db: Session = Depends(get_db)):
     sent = 0
     skipped = 0
     results = []
+    logger.info("Inspection reminder check appointments found: checked=%s", checked)
 
     for appointment in appointments:
         quote = db.get(QuoteRequest, appointment.quote_id)
         if not quote:
             skipped += 1
-            results.append({"appointment_id": appointment.id, "status": "skipped_missing_quote"})
+            appointment_result = {"appointment_id": appointment.id, "status": "skipped_missing_quote"}
+            logger.warning("Inspection reminder skipped: %s", appointment_result)
+            results.append(appointment_result)
             continue
 
         customer = db.get(Customer, quote.customer_id)
@@ -757,7 +770,23 @@ def send_inspection_reminders(request: Request, db: Session = Depends(get_db)):
             .first()
         )
 
-        appointment_result = {"appointment_id": appointment.id, "quote_id": quote.id, "shop": "skipped", "customer": "skipped"}
+        appointment_result = {
+            "appointment_id": appointment.id,
+            "quote_id": quote.id,
+            "scheduled_for": appointment.confirmed_start.isoformat() if appointment.confirmed_start else None,
+            "customer_phone_present": bool(customer and customer.phone),
+            "shop": "skipped",
+            "customer": "skipped",
+        }
+        logger.info(
+            "Inspection reminder appointment considered: appointment_id=%s quote_id=%s scheduled_for=%s customer_phone_present=%s shop_already_sent=%s customer_already_sent=%s",
+            appointment.id,
+            quote.id,
+            appointment.confirmed_start.isoformat() if appointment.confirmed_start else None,
+            bool(customer and customer.phone),
+            bool(shop_already_sent),
+            bool(customer_already_sent),
+        )
 
         if not shop_already_sent:
             if send_shop_inspection_reminder_notification(
@@ -795,9 +824,10 @@ def send_inspection_reminders(request: Request, db: Session = Depends(get_db)):
         else:
             appointment_result["status"] = "processed"
 
+        logger.info("Inspection reminder appointment result: %s", appointment_result)
         results.append(appointment_result)
 
-    return {
+    response = {
         "checked": checked,
         "sent": sent,
         "skipped": skipped,
@@ -805,6 +835,8 @@ def send_inspection_reminders(request: Request, db: Session = Depends(get_db)):
         "window_end": window_end,
         "results": results,
     }
+    logger.info("Inspection reminder check finished: %s", response)
+    return response
 
 @router.post("/quotes", response_model=QuoteOut)
 def create_quote(payload: QuoteCreate, db: Session = Depends(get_db)):
