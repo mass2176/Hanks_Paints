@@ -11,6 +11,15 @@ function money(value: number) {
   return `$${Number(value || 0).toFixed(2)}`
 }
 
+function formatUsPhone(value: string) {
+  const digits = (value || '').replace(/\D/g, '')
+  const tenDigits = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits
+
+  if (tenDigits.length !== 10) return value
+
+  return `(${tenDigits.slice(0, 3)})-${tenDigits.slice(3, 6)}-${tenDigits.slice(6)}`
+}
+
 function emptyLineItem() {
   return { description: '', amount: '' }
 }
@@ -225,7 +234,7 @@ export default function QuoteDetail() {
   }
 
   async function requestInspectionAction() {
-    const phone = data?.customer?.phone || ''
+    const phone = formatUsPhone(data?.customer?.phone || '')
     const confirmed = window.confirm(`Text inspection scheduling link to ${phone}?`)
     if (!confirmed) return
 
@@ -320,7 +329,7 @@ export default function QuoteDetail() {
   }
 
   async function textInvoiceAction(invoice: any) {
-    const phone = data?.customer?.phone || ''
+    const phone = formatUsPhone(data?.customer?.phone || '')
     const confirmed = window.confirm(`Text invoice #${invoice.id} to ${phone}?`)
     if (!confirmed) return
 
@@ -331,7 +340,7 @@ export default function QuoteDetail() {
   }
 
   async function textEstimateAction(estimate: any) {
-    const phone = data?.customer?.phone || ''
+    const phone = formatUsPhone(data?.customer?.phone || '')
     const confirmed = window.confirm(`Text estimate #${estimate.id} to ${phone}?`)
     if (!confirmed) return
 
@@ -368,7 +377,7 @@ export default function QuoteDetail() {
               <p className="muted">
                 {data.vehicle.year} {data.vehicle.make} {data.vehicle.model}
               </p>
-              <p className="muted">{data.customer.phone} / {data.customer.email}</p>
+              <p className="muted">{formatUsPhone(data.customer.phone)} / {data.customer.email}</p>
               <p className="muted">{data.quote.damage_description}</p>
             </div>
 
