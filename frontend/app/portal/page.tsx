@@ -318,6 +318,11 @@ export default function Page() {
               <p className="muted">
                 Choose one of the shop&apos;s available times for an on-site vehicle inspection.
               </p>
+              {activeAppointment && (
+                <p className="form-alert">
+                  You already have an inspection appointment scheduled. Select a new available time below to reschedule, or cancel your current appointment.
+                </p>
+              )}
               {data.appointments.length > 0 && (
                 <div style={{ marginBottom: 16 }}>
                   {data.appointments.map((item: any) => (
