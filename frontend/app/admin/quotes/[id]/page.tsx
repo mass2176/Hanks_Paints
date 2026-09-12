@@ -275,6 +275,13 @@ export default function QuoteDetail() {
   async function scheduleInspectionAction(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
 
+    if (activeAppointments.length) {
+      const activeAppointment = activeAppointments[0]
+      setSelectedAppointmentId(String(activeAppointment.id))
+      window.alert('This quote already has an active inspection appointment. Use Reschedule to choose a new time, or Cancel the existing appointment before scheduling another one.')
+      return
+    }
+
     await run(async () => {
       const res = await shopFetch(`/quotes/${id}/shop-appointments`, {
         method: 'POST',
@@ -734,9 +741,19 @@ export default function QuoteDetail() {
           <div className="grid" style={{ marginTop: 18 }}>
             <CollapsibleCard title="Appointments">
               <form onSubmit={scheduleInspectionAction}>
+                {activeAppointments.length > 0 && (
+                  <p className="form-alert">
+                    An inspection is already active for this quote. Reschedule or cancel the existing appointment before adding another one.
+                  </p>
+                )}
                 <div className="field">
                   <label>Available Inspection Time</label>
-                  <select value={selectedInspectionSlot} onChange={(e) => setSelectedInspectionSlot(e.target.value)} required>
+                  <select
+                    disabled={activeAppointments.length > 0}
+                    required={!activeAppointments.length}
+                    value={selectedInspectionSlot}
+                    onChange={(e) => setSelectedInspectionSlot(e.target.value)}
+                  >
                     <option value="">Select an available time</option>
                     {inspectionSlots.map((slot) => (
                       <option key={slot.start} value={slot.start}>
@@ -752,7 +769,7 @@ export default function QuoteDetail() {
                 {!inspectionSlots.length && (
                   <p className="muted">No inspection availability is configured or all upcoming slots are booked.</p>
                 )}
-                <button className="btn" disabled={!selectedInspectionSlot || !inspectionSlots.length} type="submit">
+                <button className="btn" disabled={!activeAppointments.length && (!selectedInspectionSlot || !inspectionSlots.length)} type="submit">
                   Schedule Inspection
                 </button>
               </form>
