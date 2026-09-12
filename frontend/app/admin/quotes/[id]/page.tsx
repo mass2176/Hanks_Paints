@@ -89,6 +89,8 @@ export default function QuoteDetail() {
   const [selectedInspectionSlot, setSelectedInspectionSlot] = useState('')
   const [inspectionNotes, setInspectionNotes] = useState('')
   const [selectedAppointmentId, setSelectedAppointmentId] = useState('')
+  const [rescheduleSlotByAppointment, setRescheduleSlotByAppointment] = useState<Record<string, string>>({})
+  const [rescheduleNotesByAppointment, setRescheduleNotesByAppointment] = useState<Record<string, string>>({})
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
 
   async function load() {
@@ -274,22 +276,50 @@ export default function QuoteDetail() {
     e.preventDefault()
 
     await run(async () => {
-      const endpoint = selectedAppointmentId
-        ? `/appointments/${selectedAppointmentId}`
-        : `/quotes/${id}/shop-appointments`
-      const res = await shopFetch(endpoint, {
-        method: selectedAppointmentId ? 'PUT' : 'POST',
+      const res = await shopFetch(`/quotes/${id}/shop-appointments`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           requested_start: selectedInspectionSlot,
-          notes: inspectionNotes || (selectedAppointmentId ? 'Rescheduled by shop' : 'Scheduled by shop'),
+          notes: inspectionNotes || 'Scheduled by shop',
         }),
       })
       if (!res.ok) throw new Error(await res.text())
       setSelectedInspectionSlot('')
       setInspectionNotes('')
+    }, 'Inspection appointment scheduled.')
+  }
+
+  async function rescheduleInspectionAction(appointmentId: number) {
+    const appointmentKey = String(appointmentId)
+    const selectedSlot = rescheduleSlotByAppointment[appointmentKey]
+    if (!selectedSlot) {
+      setError('Select a new inspection time before rescheduling.')
+      return
+    }
+
+    await run(async () => {
+      const res = await shopFetch(`/appointments/${appointmentId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requested_start: selectedSlot,
+          notes: rescheduleNotesByAppointment[appointmentKey] || 'Rescheduled by shop',
+        }),
+      })
+      if (!res.ok) throw new Error(await res.text())
       setSelectedAppointmentId('')
-    }, selectedAppointmentId ? 'Inspection appointment rescheduled.' : 'Inspection appointment scheduled.')
+      setRescheduleSlotByAppointment((current) => {
+        const next = { ...current }
+        delete next[appointmentKey]
+        return next
+      })
+      setRescheduleNotesByAppointment((current) => {
+        const next = { ...current }
+        delete next[appointmentKey]
+        return next
+      })
+    }, 'Inspection appointment rescheduled.')
   }
 
   async function updateAppointmentStatus(appointmentId: number, action: 'cancel' | 'no-show') {
@@ -704,19 +734,6 @@ export default function QuoteDetail() {
           <div className="grid" style={{ marginTop: 18 }}>
             <CollapsibleCard title="Appointments">
               <form onSubmit={scheduleInspectionAction}>
-                {activeAppointments.length > 0 && (
-                  <div className="field">
-                    <label>Appointment Action</label>
-                    <select value={selectedAppointmentId} onChange={(e) => setSelectedAppointmentId(e.target.value)}>
-                      <option value="">Schedule a new inspection</option>
-                      {activeAppointments.map((item: any) => (
-                        <option key={item.id} value={item.id}>
-                          Reschedule #{item.id} - {new Date(item.confirmed_start || item.requested_start).toLocaleString()}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
                 <div className="field">
                   <label>Available Inspection Time</label>
                   <select value={selectedInspectionSlot} onChange={(e) => setSelectedInspectionSlot(e.target.value)} required>
@@ -736,65 +753,120 @@ export default function QuoteDetail() {
                   <p className="muted">No inspection availability is configured or all upcoming slots are booked.</p>
                 )}
                 <button className="btn" disabled={!selectedInspectionSlot || !inspectionSlots.length} type="submit">
-                  {selectedAppointmentId ? 'Reschedule Inspection' : 'Schedule Inspection'}
+                  Schedule Inspection
                 </button>
               </form>
 
               <div className="user-list" style={{ marginTop: 18 }}>
                 {data.appointments.length ? data.appointments.map((item: any) => (
-                  <div className="user-row" key={item.id}>
-                    <p>
-                      <b>{item.status}</b>
-                      <br />
-                      <span className="muted">
-                        #{item.id} - {new Date(item.confirmed_start || item.requested_start).toLocaleString()}
-                        {item.notes ? ` - ${item.notes}` : ''}
-                      </span>
-                    </p>
-                    <div className="btns" style={{ marginTop: 0 }}>
-                      {item.status !== 'Appointment Confirmed' && item.status !== 'Canceled' && item.status !== 'No-Show' && (
-                        <button
-                          className="btn secondary"
-                          onClick={() =>
-                            run(async () => {
-                              const res = await shopFetch(`/appointments/${item.id}/confirm`, { method: 'POST' })
-                              if (!res.ok) throw new Error(await res.text())
-                            }, 'Appointment confirmed.')
-                          }
-                          type="button"
-                        >
-                          Confirm
-                        </button>
-                      )}
-                      {(item.status === 'Appointment Requested' || item.status === 'Appointment Confirmed') && (
-                        <>
+                  <div className="appointment-row" key={item.id}>
+                    <div className="user-row">
+                      <p>
+                        <b>{item.status}</b>
+                        <br />
+                        <span className="muted">
+                          #{item.id} - {new Date(item.confirmed_start || item.requested_start).toLocaleString()}
+                          {item.notes ? ` - ${item.notes}` : ''}
+                        </span>
+                      </p>
+                      <div className="btns" style={{ marginTop: 0 }}>
+                        {item.status !== 'Appointment Confirmed' && item.status !== 'Canceled' && item.status !== 'No-Show' && (
                           <button
                             className="btn secondary"
-                            onClick={() => {
-                              setSelectedAppointmentId(String(item.id))
-                              setInspectionNotes(item.notes || 'Rescheduled by shop')
-                            }}
+                            onClick={() =>
+                              run(async () => {
+                                const res = await shopFetch(`/appointments/${item.id}/confirm`, { method: 'POST' })
+                                if (!res.ok) throw new Error(await res.text())
+                              }, 'Appointment confirmed.')
+                            }
                             type="button"
                           >
-                            Reschedule
+                            Confirm
                           </button>
-                          <button
-                            className="btn secondary"
-                            onClick={() => updateAppointmentStatus(item.id, 'no-show')}
-                            type="button"
-                          >
-                            No-Show
-                          </button>
-                          <button
-                            className="btn danger"
-                            onClick={() => updateAppointmentStatus(item.id, 'cancel')}
-                            type="button"
-                          >
-                            Cancel
-                          </button>
-                        </>
-                      )}
+                        )}
+                        {(item.status === 'Appointment Requested' || item.status === 'Appointment Confirmed') && (
+                          <>
+                            <button
+                              className="btn secondary"
+                              onClick={() => {
+                                setSelectedAppointmentId(selectedAppointmentId === String(item.id) ? '' : String(item.id))
+                                setRescheduleNotesByAppointment((current) => ({
+                                  ...current,
+                                  [item.id]: current[item.id] ?? 'Rescheduled by shop',
+                                }))
+                              }}
+                              type="button"
+                            >
+                              Reschedule
+                            </button>
+                            <button
+                              className="btn secondary"
+                              onClick={() => updateAppointmentStatus(item.id, 'no-show')}
+                              type="button"
+                            >
+                              No-Show
+                            </button>
+                            <button
+                              className="btn danger"
+                              onClick={() => updateAppointmentStatus(item.id, 'cancel')}
+                              type="button"
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
+                    {selectedAppointmentId === String(item.id) && (
+                      <div className="appointment-reschedule">
+                        <div className="field">
+                          <label>New Inspection Time</label>
+                          <select
+                            value={rescheduleSlotByAppointment[item.id] || ''}
+                            onChange={(e) => setRescheduleSlotByAppointment((current) => ({
+                              ...current,
+                              [item.id]: e.target.value,
+                            }))}
+                            required
+                          >
+                            <option value="">Select a new available time</option>
+                            {inspectionSlots.map((slot) => (
+                              <option key={slot.start} value={slot.start}>
+                                {slot.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="field">
+                          <label>Reschedule Notes</label>
+                          <textarea
+                            rows={2}
+                            value={rescheduleNotesByAppointment[item.id] || ''}
+                            onChange={(e) => setRescheduleNotesByAppointment((current) => ({
+                              ...current,
+                              [item.id]: e.target.value,
+                            }))}
+                          />
+                        </div>
+                        <div className="btns" style={{ marginTop: 0 }}>
+                          <button
+                            className="btn"
+                            disabled={!rescheduleSlotByAppointment[item.id]}
+                            onClick={() => rescheduleInspectionAction(item.id)}
+                            type="button"
+                          >
+                            Confirm Reschedule
+                          </button>
+                          <button
+                            className="btn secondary"
+                            onClick={() => setSelectedAppointmentId('')}
+                            type="button"
+                          >
+                            Close
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )) : (
                   <p className="muted">No inspection appointments yet.</p>
