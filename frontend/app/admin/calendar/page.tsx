@@ -17,7 +17,9 @@ type InspectionAppointment = {
 }
 
 type ShopNotification = {
-  id: number
+  id: string
+  kind: string
+  label: string
   quote_id: number
   customer_name: string
   customer_phone: string
@@ -159,7 +161,7 @@ export default function InspectionCalendar() {
             </div>
             <div className={`notification-count ${notifications.length ? 'notification-count-active' : ''}`}>
               <span>{notifications.length}</span>
-              <small>Need Response</small>
+              <small>Action Needed</small>
             </div>
             <a className="btn secondary" href="/admin">
               Dashboard
@@ -197,11 +199,14 @@ export default function InspectionCalendar() {
           </section>
 
           <section className="calendar-upcoming">
-            <h2>Needs Response</h2>
+            <h2>Action Needed</h2>
             <div className="notification-list">
               {notifications.length ? notifications.map((notification) => (
                 <a className="notification-row" href={`/admin/quotes/${notification.quote_id}`} key={notification.id}>
                   <div>
+                    <small className={`notification-label notification-label-${notification.kind}`}>
+                      {notification.label}
+                    </small>
                     <b>Quote #{notification.quote_id} - {notification.customer_name}</b>
                     <span>{notification.vehicle || notification.service_type}</span>
                     <small>{notification.display_created_at}</small>
@@ -209,7 +214,7 @@ export default function InspectionCalendar() {
                   <p>{notification.body}</p>
                 </a>
               )) : (
-                <p className="calendar-no-events">No customer messages are waiting on a shop response.</p>
+                <p className="calendar-no-events">No new estimate requests or customer messages need attention.</p>
               )}
             </div>
           </section>

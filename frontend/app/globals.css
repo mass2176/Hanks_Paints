@@ -522,6 +522,22 @@ a {
   margin: 0;
 }
 
+.notification-label {
+  color: var(--text) !important;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.notification-label-quote_review {
+  color: var(--blue) !important;
+}
+
+.notification-label-customer_message {
+  color: #ff8a8a !important;
+}
+
 .upload-grid {
   display: block;
 }

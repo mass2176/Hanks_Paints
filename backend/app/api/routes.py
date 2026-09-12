@@ -157,7 +157,9 @@ def serialize_shop_notification(message: Message, db: Session):
     customer = db.get(Customer, quote.customer_id) if quote else None
     vehicle = db.get(Vehicle, quote.vehicle_id) if quote else None
     return {
-        "id": message.id,
+        "id": f"message-{message.id}",
+        "kind": "customer_message",
+        "label": "Customer Message",
         "quote_id": message.quote_id,
         "customer_name": customer.full_name if customer else "Unknown Customer",
         "customer_phone": customer.phone if customer else "",
@@ -167,6 +169,24 @@ def serialize_shop_notification(message: Message, db: Session):
         "body": message.body,
         "created_at": message.created_at,
         "display_created_at": message.created_at.strftime("%a %b %d at %I:%M %p").replace(" 0", " "),
+    }
+
+def serialize_quote_review_notification(quote: QuoteRequest, db: Session):
+    customer = db.get(Customer, quote.customer_id)
+    vehicle = db.get(Vehicle, quote.vehicle_id)
+    return {
+        "id": f"quote-review-{quote.id}",
+        "kind": "quote_review",
+        "label": "New Estimate Needs Review",
+        "quote_id": quote.id,
+        "customer_name": customer.full_name if customer else "Unknown Customer",
+        "customer_phone": customer.phone if customer else "",
+        "vehicle": f"{vehicle.year} {vehicle.make} {vehicle.model}" if vehicle else "",
+        "service_type": quote.service_type,
+        "status": quote.status.value,
+        "body": f"New {quote.service_type} estimate request is waiting for shop review.",
+        "created_at": quote.created_at,
+        "display_created_at": quote.created_at.strftime("%a %b %d at %I:%M %p").replace(" 0", " "),
     }
 
 def build_inspection_slots(db: Session, days: int = 30):
@@ -330,7 +350,15 @@ def list_inspection_appointments(db: Session = Depends(get_db), user: ShopUser =
 
 @router.get("/shop-notifications")
 def list_shop_notifications(db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
-    rows = (
+    pending_quotes = (
+        db.query(QuoteRequest)
+        .filter(QuoteRequest.status == QuoteStatus.received)
+        .order_by(QuoteRequest.created_at.desc())
+        .limit(25)
+        .all()
+    )
+
+    customer_messages = (
         db.query(Message)
         .filter(Message.sender_type == "customer")
         .filter(Message.quote_id.isnot(None))
@@ -339,9 +367,9 @@ def list_shop_notifications(db: Session = Depends(get_db), user: ShopUser = Depe
         .all()
     )
 
-    notifications = []
-    seen_quote_ids = set()
-    for message in rows:
+    notifications = [serialize_quote_review_notification(quote, db) for quote in pending_quotes]
+    seen_quote_ids = {quote.id for quote in pending_quotes}
+    for message in customer_messages:
         if message.quote_id in seen_quote_ids:
             continue
         seen_quote_ids.add(message.quote_id)
@@ -357,10 +385,9 @@ def list_shop_notifications(db: Session = Depends(get_db), user: ShopUser = Depe
             continue
 
         notifications.append(serialize_shop_notification(message, db))
-        if len(notifications) >= 12:
-            break
 
-    return notifications
+    notifications.sort(key=lambda item: item["created_at"], reverse=True)
+    return notifications[:20]
 
 def quote_snapshot(db: Session, quote_id: int, *, public: bool = False):
     quote = db.get(QuoteRequest, quote_id)
