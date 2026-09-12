@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./hanks_paints.db"
     media_root: str = "./media"
     public_base_url: str = "http://localhost:3000"
+    shop_timezone: str = "America/Indiana/Indianapolis"
     sms_enabled: bool = False
     sms_notifications_enabled: bool = False
     shop_notification_phone: str = "+17652527998"

@@ -1,5 +1,6 @@
 import os, shutil, uuid
 from datetime import datetime, time, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 from sqlalchemy import or_
@@ -80,6 +81,12 @@ def format_cents(amount: int | None, currency: str | None = "usd"):
         return "unknown"
     symbol = "$" if (currency or "usd").lower() == "usd" else f"{currency.upper()} "
     return f"{symbol}{amount / 100:.2f}"
+
+def shop_now() -> datetime:
+    try:
+        return datetime.now(ZoneInfo(settings.shop_timezone)).replace(tzinfo=None)
+    except ZoneInfoNotFoundError:
+        return datetime.now()
 
 def serialize_message(item: Message):
     return {
@@ -199,7 +206,7 @@ def build_inspection_slots(db: Session, days: int = 30):
     if not rules:
         return []
 
-    now = datetime.now()
+    now = shop_now()
     window_end = now + timedelta(days=max(1, min(days, 90)))
     taken_rows = (
         db.query(Appointment)
@@ -337,7 +344,7 @@ def delete_inspection_availability(availability_id: int, db: Session = Depends(g
 
 @router.get("/inspection-appointments")
 def list_inspection_appointments(db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
-    now = datetime.now() - timedelta(days=1)
+    now = shop_now() - timedelta(days=1)
     rows = (
         db.query(Appointment)
         .filter(Appointment.status.in_([AppointmentStatus.requested, AppointmentStatus.confirmed]))
@@ -695,12 +702,13 @@ def send_inspection_reminders(request: Request, db: Session = Depends(get_db)):
     require_maintenance_secret(request)
 
     reminder_minutes = max(1, settings.inspection_reminder_minutes)
-    now = datetime.now()
+    now = shop_now()
+    window_start = now - timedelta(minutes=5)
     window_end = now + timedelta(minutes=reminder_minutes)
     appointments = (
         db.query(Appointment)
         .filter(Appointment.status == AppointmentStatus.confirmed)
-        .filter(Appointment.confirmed_start >= now)
+        .filter(Appointment.confirmed_start >= window_start)
         .filter(Appointment.confirmed_start <= window_end)
         .order_by(Appointment.confirmed_start.asc())
         .all()
@@ -778,7 +786,14 @@ def send_inspection_reminders(request: Request, db: Session = Depends(get_db)):
 
         results.append(appointment_result)
 
-    return {"checked": checked, "sent": sent, "skipped": skipped, "results": results}
+    return {
+        "checked": checked,
+        "sent": sent,
+        "skipped": skipped,
+        "window_start": window_start,
+        "window_end": window_end,
+        "results": results,
+    }
 
 @router.post("/quotes", response_model=QuoteOut)
 def create_quote(payload: QuoteCreate, db: Session = Depends(get_db)):
