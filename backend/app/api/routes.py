@@ -13,13 +13,14 @@ from app.models.domain import (
     InspectionAvailability, Invoice, Job, JobStatus, MediaFile, Message, Payment, QuoteRequest, QuoteStatus,
     ShopUser, ShopUserRole, Supplement, Vehicle, Visibility
 )
-from app.schemas.quote import AppointmentRequestIn, EstimateApprovalIn, EstimateCreate, InspectionAvailabilityIn, InspectionCompleteIn, MessageIn, PaymentIn, ProductCheckoutIn, QuoteCreate, QuoteOut, ShopLoginIn, ShopUserCreateIn
+from app.schemas.quote import AppointmentRequestIn, AppointmentStatusIn, EstimateApprovalIn, EstimateCreate, InspectionAvailabilityIn, InspectionCompleteIn, MessageIn, PaymentIn, ProductCheckoutIn, QuoteCreate, QuoteOut, ShopLoginIn, ShopUserCreateIn
 from app.services.activity import log_activity
 from app.services.auth import create_access_token, get_current_shop_user, hash_password, public_user, require_admin, verify_password
 from app.services.invoice_preview import render_estimate_preview, render_invoice_preview
 from app.services.notifications import (
     normalize_us_phone,
     send_customer_estimate_notification,
+    send_customer_inspection_canceled_notification,
     send_customer_inspection_request_notification,
     send_customer_inspection_reminder_notification,
     send_customer_inspection_scheduled_notification,
@@ -28,6 +29,7 @@ from app.services.notifications import (
     send_customer_portal_message_notification,
     send_customer_quote_received_notification,
     send_shop_customer_message_notification,
+    send_shop_inspection_canceled_notification,
     send_shop_inspection_scheduled_notification,
     send_shop_inspection_reminder_notification,
     send_shop_new_quote_notification,
@@ -247,6 +249,15 @@ def ensure_available_inspection_slot(db: Session, requested_start: datetime):
     if requested not in available:
         raise HTTPException(400, "Select an available inspection time from the shop schedule")
     return requested
+
+def active_appointment_for_quote(db: Session, quote_id: int):
+    return (
+        db.query(Appointment)
+        .filter(Appointment.quote_id == quote_id)
+        .filter(Appointment.status.in_([AppointmentStatus.requested, AppointmentStatus.confirmed]))
+        .order_by(Appointment.requested_start.desc())
+        .first()
+    )
 
 def comparable_phone_digits(value: str) -> str:
     digits = "".join(character for character in value if character.isdigit())
@@ -731,7 +742,7 @@ def send_inspection_reminders(request: Request, db: Session = Depends(get_db)):
         customer_name = customer.full_name if customer else "Unknown Customer"
         vehicle_label = f"{vehicle.year} {vehicle.make} {vehicle.model}" if vehicle else ""
         scheduled_for = format_appointment_datetime(appointment.confirmed_start)
-        detail = f"appointment_id={appointment.id}"
+        detail = f"appointment_id={appointment.id};scheduled_for={appointment.confirmed_start.isoformat()}"
 
         shop_already_sent = (
             db.query(Activity)
@@ -1025,6 +1036,8 @@ def request_appointment(quote_id: int, payload: AppointmentRequestIn, contact: s
     customer = db.get(Customer, quote.customer_id)
     if not customer or not contact_matches_customer(customer, contact):
         raise HTTPException(403, "Contact does not match this quote")
+    if active_appointment_for_quote(db, quote_id):
+        raise HTTPException(409, "This quote already has an active inspection appointment. Reschedule the existing appointment instead.")
     scheduled_start = ensure_available_inspection_slot(db, payload.requested_start)
     quote.status = QuoteStatus.appointment_confirmed
     appt = Appointment(
@@ -1055,6 +1068,8 @@ def schedule_shop_appointment(quote_id: int, payload: AppointmentRequestIn, db: 
     quote = db.get(QuoteRequest, quote_id)
     if not quote:
         raise HTTPException(404, "Quote not found")
+    if active_appointment_for_quote(db, quote_id):
+        raise HTTPException(409, "This quote already has an active inspection appointment. Reschedule the existing appointment instead.")
     scheduled_start = ensure_available_inspection_slot(db, payload.requested_start)
     quote.status = QuoteStatus.appointment_confirmed
     appt = Appointment(
@@ -1077,6 +1092,137 @@ def schedule_shop_appointment(quote_id: int, payload: AppointmentRequestIn, db: 
             scheduled_for=scheduled_for,
         )
     return {"id": appt.id, "status": appt.status.value}
+
+@router.put("/appointments/{appointment_id}")
+def reschedule_appointment(appointment_id: int, payload: AppointmentRequestIn, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
+    appt = db.get(Appointment, appointment_id)
+    if not appt:
+        raise HTTPException(404, "Appointment not found")
+    if appt.status not in {AppointmentStatus.requested, AppointmentStatus.confirmed}:
+        raise HTTPException(400, "Only requested or confirmed appointments can be rescheduled")
+
+    scheduled_start = ensure_available_inspection_slot(db, payload.requested_start)
+    appt.requested_start = scheduled_start
+    appt.confirmed_start = scheduled_start
+    appt.status = AppointmentStatus.confirmed
+    if payload.notes:
+        appt.notes = payload.notes
+
+    quote = db.get(QuoteRequest, appt.quote_id)
+    if quote:
+        quote.status = QuoteStatus.appointment_confirmed
+    db.commit()
+    db.refresh(appt)
+
+    customer = db.get(Customer, quote.customer_id) if quote else None
+    scheduled_for = format_appointment_datetime(scheduled_start)
+    log_activity(db, quote_id=appt.quote_id, event="Inspection appointment rescheduled", actor=user.role.value, detail=scheduled_for)
+    if quote and customer:
+        send_customer_inspection_scheduled_notification(
+            phone=customer.phone,
+            quote_id=quote.id,
+            scheduled_for=scheduled_for,
+        )
+        send_shop_inspection_scheduled_notification(
+            quote_id=quote.id,
+            customer_name=customer.full_name,
+            scheduled_for=scheduled_for,
+        )
+    return serialize_appointment(appt, db)
+
+@router.put("/quotes/{quote_id}/appointments/{appointment_id}")
+def reschedule_customer_appointment(quote_id: int, appointment_id: int, payload: AppointmentRequestIn, contact: str, db: Session = Depends(get_db)):
+    quote = db.get(QuoteRequest, quote_id)
+    if not quote:
+        raise HTTPException(404, "Quote not found")
+    customer = db.get(Customer, quote.customer_id)
+    if not customer or not contact_matches_customer(customer, contact):
+        raise HTTPException(403, "Contact does not match this quote")
+
+    appt = db.get(Appointment, appointment_id)
+    if not appt or appt.quote_id != quote_id:
+        raise HTTPException(404, "Appointment not found")
+    if appt.status not in {AppointmentStatus.requested, AppointmentStatus.confirmed}:
+        raise HTTPException(400, "Only requested or confirmed appointments can be rescheduled")
+
+    scheduled_start = ensure_available_inspection_slot(db, payload.requested_start)
+    appt.requested_start = scheduled_start
+    appt.confirmed_start = scheduled_start
+    appt.status = AppointmentStatus.confirmed
+    if payload.notes:
+        appt.notes = payload.notes
+    quote.status = QuoteStatus.appointment_confirmed
+    db.commit()
+    db.refresh(appt)
+
+    scheduled_for = format_appointment_datetime(scheduled_start)
+    log_activity(db, quote_id=quote_id, event="Inspection appointment rescheduled", actor="customer", detail=scheduled_for)
+    send_shop_inspection_scheduled_notification(
+        quote_id=quote.id,
+        customer_name=customer.full_name,
+        scheduled_for=scheduled_for,
+    )
+    send_customer_inspection_scheduled_notification(
+        phone=customer.phone,
+        quote_id=quote.id,
+        scheduled_for=scheduled_for,
+    )
+    return serialize_appointment(appt, db)
+
+@router.post("/appointments/{appointment_id}/cancel")
+def cancel_appointment(appointment_id: int, payload: AppointmentStatusIn | None = None, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
+    appt = db.get(Appointment, appointment_id)
+    if not appt:
+        raise HTTPException(404, "Appointment not found")
+    appt.status = AppointmentStatus.canceled
+    if payload and payload.notes:
+        appt.notes = payload.notes
+    quote = db.get(QuoteRequest, appt.quote_id)
+    if quote and quote.status == QuoteStatus.appointment_confirmed:
+        quote.status = QuoteStatus.inspection_needed
+    db.commit()
+    log_activity(db, quote_id=appt.quote_id, event="Inspection appointment canceled", actor=user.role.value, detail=appt.notes or "")
+    customer = db.get(Customer, quote.customer_id) if quote else None
+    if quote and customer and customer.phone:
+        send_customer_inspection_canceled_notification(phone=customer.phone, quote_id=quote.id)
+    return serialize_appointment(appt, db)
+
+@router.post("/quotes/{quote_id}/appointments/{appointment_id}/cancel")
+def cancel_customer_appointment(quote_id: int, appointment_id: int, contact: str, payload: AppointmentStatusIn | None = None, db: Session = Depends(get_db)):
+    quote = db.get(QuoteRequest, quote_id)
+    if not quote:
+        raise HTTPException(404, "Quote not found")
+    customer = db.get(Customer, quote.customer_id)
+    if not customer or not contact_matches_customer(customer, contact):
+        raise HTTPException(403, "Contact does not match this quote")
+    appt = db.get(Appointment, appointment_id)
+    if not appt or appt.quote_id != quote_id:
+        raise HTTPException(404, "Appointment not found")
+
+    appt.status = AppointmentStatus.canceled
+    if payload and payload.notes:
+        appt.notes = payload.notes
+    if quote.status == QuoteStatus.appointment_confirmed:
+        quote.status = QuoteStatus.inspection_needed
+    db.commit()
+    log_activity(db, quote_id=quote_id, event="Inspection appointment canceled", actor="customer", detail=appt.notes or "")
+    send_shop_inspection_canceled_notification(quote_id=quote.id, customer_name=customer.full_name)
+    return serialize_appointment(appt, db)
+
+@router.post("/appointments/{appointment_id}/no-show")
+def no_show_appointment(appointment_id: int, payload: AppointmentStatusIn | None = None, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
+    appt = db.get(Appointment, appointment_id)
+    if not appt:
+        raise HTTPException(404, "Appointment not found")
+    appt.status = AppointmentStatus.no_show
+    if payload and payload.notes:
+        appt.notes = payload.notes
+    quote = db.get(QuoteRequest, appt.quote_id)
+    if quote and quote.status == QuoteStatus.appointment_confirmed:
+        quote.status = QuoteStatus.inspection_needed
+    db.commit()
+    log_activity(db, quote_id=appt.quote_id, event="Inspection appointment marked no-show", actor=user.role.value, detail=appt.notes or "")
+    return serialize_appointment(appt, db)
 
 @router.post("/appointments/{appointment_id}/confirm")
 def confirm_appointment(appointment_id: int, confirmed_start: datetime | None = None, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):

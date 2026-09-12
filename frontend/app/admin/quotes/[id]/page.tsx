@@ -88,6 +88,7 @@ export default function QuoteDetail() {
   const [inspectionSlots, setInspectionSlots] = useState<any[]>([])
   const [selectedInspectionSlot, setSelectedInspectionSlot] = useState('')
   const [inspectionNotes, setInspectionNotes] = useState('')
+  const [selectedAppointmentId, setSelectedAppointmentId] = useState('')
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
 
   async function load() {
@@ -175,6 +176,9 @@ export default function QuoteDetail() {
   const quoteConverted = quoteStatus === 'Converted to Job'
   const inspectionComplete = Boolean(data?.quote?.physical_inspection_completed)
   const inspectionLocked = quotationComplete || quoteApproved || quoteConverted
+  const activeAppointments = data?.appointments?.filter((item: any) => (
+    item.status === 'Appointment Requested' || item.status === 'Appointment Confirmed'
+  )) || []
   const estimateStatus = existingEstimate
     ? `${existingEstimate.estimate_type === 'final' ? 'Final Estimate' : 'Preliminary Photo Estimate'}`
     : 'Not Created'
@@ -270,18 +274,38 @@ export default function QuoteDetail() {
     e.preventDefault()
 
     await run(async () => {
-      const res = await shopFetch(`/quotes/${id}/shop-appointments`, {
-        method: 'POST',
+      const endpoint = selectedAppointmentId
+        ? `/appointments/${selectedAppointmentId}`
+        : `/quotes/${id}/shop-appointments`
+      const res = await shopFetch(endpoint, {
+        method: selectedAppointmentId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           requested_start: selectedInspectionSlot,
-          notes: inspectionNotes || 'Scheduled by shop',
+          notes: inspectionNotes || (selectedAppointmentId ? 'Rescheduled by shop' : 'Scheduled by shop'),
         }),
       })
       if (!res.ok) throw new Error(await res.text())
       setSelectedInspectionSlot('')
       setInspectionNotes('')
-    }, 'Inspection appointment scheduled.')
+      setSelectedAppointmentId('')
+    }, selectedAppointmentId ? 'Inspection appointment rescheduled.' : 'Inspection appointment scheduled.')
+  }
+
+  async function updateAppointmentStatus(appointmentId: number, action: 'cancel' | 'no-show') {
+    const label = action === 'no-show' ? 'mark this inspection as a no-show' : 'cancel this inspection'
+    const confirmed = window.confirm(`Are you sure you want to ${label}?`)
+    if (!confirmed) return
+
+    const notes = window.prompt('Optional note for the appointment history:', '') ?? ''
+    await run(async () => {
+      const res = await shopFetch(`/appointments/${appointmentId}/${action}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+    }, action === 'no-show' ? 'Inspection marked no-show.' : 'Inspection canceled.')
   }
 
   function updateEstimateLineItem(index: number, field: 'description' | 'amount', value: string) {
@@ -680,6 +704,19 @@ export default function QuoteDetail() {
           <div className="grid" style={{ marginTop: 18 }}>
             <CollapsibleCard title="Appointments">
               <form onSubmit={scheduleInspectionAction}>
+                {activeAppointments.length > 0 && (
+                  <div className="field">
+                    <label>Appointment Action</label>
+                    <select value={selectedAppointmentId} onChange={(e) => setSelectedAppointmentId(e.target.value)}>
+                      <option value="">Schedule a new inspection</option>
+                      {activeAppointments.map((item: any) => (
+                        <option key={item.id} value={item.id}>
+                          Reschedule #{item.id} - {new Date(item.confirmed_start || item.requested_start).toLocaleString()}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="field">
                   <label>Available Inspection Time</label>
                   <select value={selectedInspectionSlot} onChange={(e) => setSelectedInspectionSlot(e.target.value)} required>
@@ -699,7 +736,7 @@ export default function QuoteDetail() {
                   <p className="muted">No inspection availability is configured or all upcoming slots are booked.</p>
                 )}
                 <button className="btn" disabled={!selectedInspectionSlot || !inspectionSlots.length} type="submit">
-                  Schedule Inspection
+                  {selectedAppointmentId ? 'Reschedule Inspection' : 'Schedule Inspection'}
                 </button>
               </form>
 
@@ -714,20 +751,50 @@ export default function QuoteDetail() {
                         {item.notes ? ` - ${item.notes}` : ''}
                       </span>
                     </p>
-                    {item.status !== 'Appointment Confirmed' && (
-                      <button
-                        className="btn secondary"
-                        onClick={() =>
-                          run(async () => {
-                            const res = await shopFetch(`/appointments/${item.id}/confirm`, { method: 'POST' })
-                            if (!res.ok) throw new Error(await res.text())
-                          }, 'Appointment confirmed.')
-                        }
-                        type="button"
-                      >
-                        Confirm
-                      </button>
-                    )}
+                    <div className="btns" style={{ marginTop: 0 }}>
+                      {item.status !== 'Appointment Confirmed' && item.status !== 'Canceled' && item.status !== 'No-Show' && (
+                        <button
+                          className="btn secondary"
+                          onClick={() =>
+                            run(async () => {
+                              const res = await shopFetch(`/appointments/${item.id}/confirm`, { method: 'POST' })
+                              if (!res.ok) throw new Error(await res.text())
+                            }, 'Appointment confirmed.')
+                          }
+                          type="button"
+                        >
+                          Confirm
+                        </button>
+                      )}
+                      {(item.status === 'Appointment Requested' || item.status === 'Appointment Confirmed') && (
+                        <>
+                          <button
+                            className="btn secondary"
+                            onClick={() => {
+                              setSelectedAppointmentId(String(item.id))
+                              setInspectionNotes(item.notes || 'Rescheduled by shop')
+                            }}
+                            type="button"
+                          >
+                            Reschedule
+                          </button>
+                          <button
+                            className="btn secondary"
+                            onClick={() => updateAppointmentStatus(item.id, 'no-show')}
+                            type="button"
+                          >
+                            No-Show
+                          </button>
+                          <button
+                            className="btn danger"
+                            onClick={() => updateAppointmentStatus(item.id, 'cancel')}
+                            type="button"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 )) : (
                   <p className="muted">No inspection appointments yet.</p>

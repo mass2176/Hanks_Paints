@@ -57,6 +57,9 @@ class AppointmentRequestIn(BaseModel):
     requested_start: datetime
     notes: str | None = None
 
+class AppointmentStatusIn(BaseModel):
+    notes: str | None = None
+
 class InspectionAvailabilityIn(BaseModel):
     weekday: int
     start_time: str

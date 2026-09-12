@@ -222,6 +222,14 @@ def send_customer_inspection_scheduled_notification(*, phone: str, quote_id: int
     return _send_sms(phone, message)
 
 
+def send_customer_inspection_canceled_notification(*, phone: str, quote_id: int) -> bool:
+    message = (
+        f"Hanks Paints: Your on-site inspection for Quote #{quote_id} has been canceled. "
+        "Open your portal to choose another available time or message the shop. Reply STOP to opt out."
+    )
+    return _send_sms(phone, message)
+
+
 def send_shop_inspection_scheduled_notification(
     *,
     quote_id: int,
@@ -231,6 +239,14 @@ def send_shop_inspection_scheduled_notification(
     message = (
         f"Hanks Paints: Inspection scheduled for Quote #{quote_id} from {customer_name} "
         f"on {scheduled_for}. Open the admin dashboard: https://hanks-paints.com/admin"
+    )
+    return _send_sms(settings.shop_notification_phone, message)
+
+
+def send_shop_inspection_canceled_notification(*, quote_id: int, customer_name: str) -> bool:
+    message = (
+        f"Hanks Paints: Inspection canceled for Quote #{quote_id} from {customer_name}. "
+        f"Open: https://hanks-paints.com/admin/quotes/{quote_id}"
     )
     return _send_sms(settings.shop_notification_phone, message)
 

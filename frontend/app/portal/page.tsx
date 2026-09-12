@@ -92,17 +92,38 @@ export default function Page() {
   async function requestAppointment(e: React.FormEvent) {
     e.preventDefault()
     await run(async () => {
-      const res = await fetch(`${apiBaseUrl}/quotes/${data.quote.id}/appointments?contact=${encodeURIComponent(contact)}`, {
-        method: 'POST',
+      const endpoint = activeAppointment
+        ? `${apiBaseUrl}/quotes/${data.quote.id}/appointments/${activeAppointment.id}?contact=${encodeURIComponent(contact)}`
+        : `${apiBaseUrl}/quotes/${data.quote.id}/appointments?contact=${encodeURIComponent(contact)}`
+      const res = await fetch(endpoint, {
+        method: activeAppointment ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           requested_start: appointment,
-          notes: 'Requested from customer portal',
+          notes: activeAppointment ? 'Rescheduled from customer portal' : 'Requested from customer portal',
         }),
       })
       if (!res.ok) throw new Error(await res.text())
       setAppointment('')
-    }, 'Inspection appointment requested.')
+    }, activeAppointment ? 'Inspection appointment rescheduled.' : 'Inspection appointment requested.')
+  }
+
+  async function cancelAppointment(appointmentId: number) {
+    const confirmed = window.confirm('Cancel this inspection appointment?')
+    if (!confirmed) return
+
+    await run(async () => {
+      const res = await fetch(
+        `${apiBaseUrl}/quotes/${data.quote.id}/appointments/${appointmentId}/cancel?contact=${encodeURIComponent(contact)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notes: 'Canceled from customer portal' }),
+        }
+      )
+      if (!res.ok) throw new Error(await res.text())
+      setAppointment('')
+    }, 'Inspection appointment canceled.')
   }
 
   async function uploadMedia(e: React.FormEvent) {
@@ -178,6 +199,9 @@ export default function Page() {
   const finalEstimate = data?.estimates?.find(
     (estimate: any) => data?.quote?.status === 'Final Estimate Ready' && estimate.estimate_type === 'final' && estimate.status !== 'approved'
   )
+  const activeAppointment = data?.appointments?.find((item: any) => (
+    item.status === 'Appointment Requested' || item.status === 'Appointment Confirmed'
+  ))
   const pendingSupplement = data?.jobs
     ?.flatMap((job: any) => job.supplements)
     .find((supplement: any) => supplement.status !== 'approved')
@@ -290,10 +314,22 @@ export default function Page() {
             </form>
 
             <form className="card" onSubmit={requestAppointment}>
-              <h2>Schedule Inspection</h2>
+              <h2>{activeAppointment ? 'Reschedule Inspection' : 'Schedule Inspection'}</h2>
               <p className="muted">
                 Choose one of the shop&apos;s available times for an on-site vehicle inspection.
               </p>
+              {data.appointments.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  {data.appointments.map((item: any) => (
+                    <p className="muted" key={item.id}>
+                      <b>{item.status}</b>
+                      <br />
+                      #{item.id} - {new Date(item.confirmed_start || item.requested_start).toLocaleString()}
+                      {item.notes ? ` - ${item.notes}` : ''}
+                    </p>
+                  ))}
+                </div>
+              )}
               <div className="field">
                 <label>Available Inspection Time</label>
                 <select value={appointment} onChange={(e) => setAppointment(e.target.value)} required>
@@ -309,8 +345,17 @@ export default function Page() {
                 <p className="muted">No inspection times are currently available. Message the shop to coordinate a time.</p>
               )}
               <button className="btn" type="submit" disabled={!appointment || !inspectionSlots.length}>
-                Schedule Appointment
+                {activeAppointment ? 'Reschedule Appointment' : 'Schedule Appointment'}
               </button>
+              {activeAppointment && (
+                <button
+                  className="btn secondary"
+                  onClick={() => cancelAppointment(activeAppointment.id)}
+                  type="button"
+                >
+                  Cancel Appointment
+                </button>
+              )}
             </form>
 
             <form className="card" onSubmit={sendMessage}>
