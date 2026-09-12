@@ -84,6 +84,17 @@ def _normalize_us_phone(phone: str | None) -> str | None:
     return None
 
 
+def normalize_us_phone(phone: str | None) -> str | None:
+    return _normalize_us_phone(phone)
+
+
+def _message_excerpt(message: str, limit: int = 240) -> str:
+    clean = " ".join((message or "").split())
+    if len(clean) <= limit:
+        return clean
+    return f"{clean[:limit - 3]}..."
+
+
 def send_customer_notification(destination: str, message: str) -> None:
     """Record customer notification intent until customer SMS workflow is enabled intentionally."""
     print(f"CUSTOMER NOTIFICATION intent to {destination}: {message}")
@@ -175,6 +186,23 @@ def send_customer_estimate_notification(
         "Use your phone or email to open private details. Reply STOP to opt out."
     )
     return _send_sms(phone, message, media_url=media_url)
+
+
+def send_customer_portal_message_notification(*, phone: str, quote_id: int, body: str) -> bool:
+    message = (
+        f"Hanks Paints: {_message_excerpt(body)} "
+        f"View or reply here: https://hanks-paints.com/portal?quote={quote_id} "
+        "Reply STOP to opt out."
+    )
+    return _send_sms(phone, message)
+
+
+def send_shop_customer_message_notification(*, quote_id: int, customer_name: str, body: str) -> bool:
+    message = (
+        f"Hanks Paints: New customer message on Quote #{quote_id} from {customer_name}: "
+        f"{_message_excerpt(body)} Open: https://hanks-paints.com/admin/quotes/{quote_id}"
+    )
+    return _send_sms(settings.shop_notification_phone, message)
 
 
 def send_customer_inspection_request_notification(*, phone: str, quote_id: int) -> bool:

@@ -1,7 +1,7 @@
 import os, shutil, uuid
 from datetime import datetime, time, timedelta
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 import stripe
@@ -17,13 +17,16 @@ from app.services.activity import log_activity
 from app.services.auth import create_access_token, get_current_shop_user, hash_password, public_user, require_admin, verify_password
 from app.services.invoice_preview import render_estimate_preview, render_invoice_preview
 from app.services.notifications import (
+    normalize_us_phone,
     send_customer_estimate_notification,
     send_customer_inspection_request_notification,
     send_customer_inspection_reminder_notification,
     send_customer_inspection_scheduled_notification,
     send_customer_notification,
     send_customer_invoice_notification,
+    send_customer_portal_message_notification,
     send_customer_quote_received_notification,
+    send_shop_customer_message_notification,
     send_shop_inspection_scheduled_notification,
     send_shop_inspection_reminder_notification,
     send_shop_new_quote_notification,
@@ -77,6 +80,14 @@ def format_cents(amount: int | None, currency: str | None = "usd"):
         return "unknown"
     symbol = "$" if (currency or "usd").lower() == "usd" else f"{currency.upper()} "
     return f"{symbol}{amount / 100:.2f}"
+
+def serialize_message(item: Message):
+    return {
+        "id": item.id,
+        "sender_type": item.sender_type,
+        "body": item.body,
+        "created_at": item.created_at,
+    }
 
 def shipping_summary_from_session(session):
     customer_details = session.get("customer_details") or {}
@@ -452,15 +463,7 @@ def quote_snapshot(db: Session, quote_id: int, *, public: bool = False):
         ],
         "estimates": estimate_rows,
         "jobs": job_rows,
-        "messages": [
-            {
-                "id": item.id,
-                "sender_type": item.sender_type,
-                "body": item.body,
-                "created_at": item.created_at,
-            }
-            for item in messages
-        ],
+        "messages": [serialize_message(item) for item in messages],
         "timeline": [
             {
                 "event": item.event,
@@ -1182,21 +1185,89 @@ def approve_supplement(supplement_id: int, typed_signature: str, db: Session = D
     log_activity(db, job_id=job.id, event="Supplement approved and signed", actor="customer", detail=typed_signature)
     return {"status": sup.status}
 
+@router.get("/quotes/{quote_id}/messages")
+def list_quote_messages(quote_id: int, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
+    quote = db.get(QuoteRequest, quote_id)
+    if not quote:
+        raise HTTPException(404, "Quote not found")
+    messages = db.query(Message).filter(Message.quote_id == quote_id).order_by(Message.created_at.asc()).all()
+    return [serialize_message(item) for item in messages]
+
 @router.post("/quotes/{quote_id}/messages")
 def add_quote_message(quote_id: int, payload: MessageIn, db: Session = Depends(get_db)):
     if payload.sender_type != "customer":
         raise HTTPException(401, "Shop messages require the authenticated shop endpoint")
+    quote = db.get(QuoteRequest, quote_id)
+    if not quote:
+        raise HTTPException(404, "Quote not found")
+    customer = db.get(Customer, quote.customer_id)
     msg = Message(quote_id=quote_id, sender_type=payload.sender_type, body=payload.body)
     db.add(msg); db.commit(); db.refresh(msg)
     log_activity(db, quote_id=quote_id, event="Message sent", actor=payload.sender_type)
+    if customer:
+        send_shop_customer_message_notification(
+            quote_id=quote_id,
+            customer_name=customer.full_name,
+            body=payload.body,
+        )
     return {"id": msg.id}
 
 @router.post("/quotes/{quote_id}/shop-messages")
 def add_shop_quote_message(quote_id: int, payload: MessageIn, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
+    quote = db.get(QuoteRequest, quote_id)
+    if not quote:
+        raise HTTPException(404, "Quote not found")
+    customer = db.get(Customer, quote.customer_id)
+    if not customer or not customer.phone:
+        raise HTTPException(400, "Customer phone number is missing")
+
     msg = Message(quote_id=quote_id, sender_type="shop", body=payload.body)
     db.add(msg); db.commit(); db.refresh(msg)
     log_activity(db, quote_id=quote_id, event="Message sent", actor=user.role.value)
-    return {"id": msg.id}
+    sms_sent = send_customer_portal_message_notification(
+        phone=customer.phone,
+        quote_id=quote_id,
+        body=payload.body,
+    )
+    return {"id": msg.id, "sms_sent": sms_sent}
+
+@router.post("/twilio/inbound-sms")
+async def receive_twilio_inbound_sms(request: Request, db: Session = Depends(get_db)):
+    form = await request.form()
+    from_phone = normalize_us_phone(str(form.get("From") or ""))
+    body = str(form.get("Body") or "").strip()
+
+    if not from_phone or not body:
+        return Response("<Response></Response>", media_type="application/xml")
+
+    customers = db.query(Customer).all()
+    matched_customer = next(
+        (customer for customer in customers if normalize_us_phone(customer.phone) == from_phone),
+        None,
+    )
+    if not matched_customer:
+        print(f"SMS reply ignored; no customer matched {from_phone}: {body}")
+        return Response("<Response></Response>", media_type="application/xml")
+
+    quote = (
+        db.query(QuoteRequest)
+        .filter(QuoteRequest.customer_id == matched_customer.id)
+        .order_by(QuoteRequest.created_at.desc())
+        .first()
+    )
+    if not quote:
+        print(f"SMS reply ignored; no quote matched customer {matched_customer.id}: {body}")
+        return Response("<Response></Response>", media_type="application/xml")
+
+    msg = Message(quote_id=quote.id, sender_type="customer", body=body)
+    db.add(msg); db.commit(); db.refresh(msg)
+    log_activity(db, quote_id=quote.id, event="Message received by SMS", actor="customer")
+    send_shop_customer_message_notification(
+        quote_id=quote.id,
+        customer_name=matched_customer.full_name,
+        body=body,
+    )
+    return Response("<Response></Response>", media_type="application/xml")
 
 @router.post("/jobs/{job_id}/invoice")
 def create_invoice(job_id: int, total_due: float, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):

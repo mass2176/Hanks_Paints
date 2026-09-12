@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useParams } from 'next/navigation'
 import { PrintableEstimate, PrintableInvoice } from '../../../../components/PrintableDocuments'
 import { apiBaseUrl } from '../../../../lib/config'
@@ -88,6 +88,7 @@ export default function QuoteDetail() {
   const [inspectionSlots, setInspectionSlots] = useState<any[]>([])
   const [selectedInspectionSlot, setSelectedInspectionSlot] = useState('')
   const [inspectionNotes, setInspectionNotes] = useState('')
+  const messagesEndRef = useRef<HTMLDivElement | null>(null)
 
   async function load() {
     const res = await shopFetch(`/quotes/${id}`)
@@ -98,6 +99,13 @@ export default function QuoteDetail() {
     const slotsRes = await fetch(`${apiBaseUrl}/quotes/${id}/inspection-slots`)
     const slotsBody = await slotsRes.json()
     setInspectionSlots(slotsRes.ok ? slotsBody : [])
+  }
+
+  async function loadMessages() {
+    const res = await shopFetch(`/quotes/${id}/messages`)
+    const body = await res.json()
+    if (!res.ok) throw new Error(body.detail || 'Message load failed')
+    setData((current: any) => current ? { ...current, messages: body } : current)
   }
 
   async function run(action: () => Promise<void>, done: string) {
@@ -142,6 +150,20 @@ export default function QuoteDetail() {
         .finally(() => setAuthChecked(true))
     }
   }, [id])
+
+  useEffect(() => {
+    if (!user || !data) return
+
+    const timer = window.setInterval(() => {
+      loadMessages().catch((err) => setError(err.message))
+    }, 5000)
+
+    return () => window.clearInterval(timer)
+  }, [user, data?.quote?.id])
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ block: 'end' })
+  }, [data?.messages?.length])
 
   const latestJob = data?.jobs?.[0]
   const latestInvoice = latestJob?.invoices?.[0]
@@ -348,6 +370,22 @@ export default function QuoteDetail() {
       const res = await shopFetch(`/estimates/${estimate.id}/send-sms`, { method: 'POST' })
       if (!res.ok) throw new Error(await res.text())
     }, `Estimate #${estimate.id} text sent to ${phone}.`)
+  }
+
+  async function sendShopMessage(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const body = shopMessage.trim()
+    if (!body) return
+
+    await run(async () => {
+      const res = await shopFetch(`/quotes/${id}/shop-messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sender_type: 'shop', body }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      setShopMessage('')
+    }, 'Message texted to customer.')
   }
 
   return (
@@ -584,25 +622,56 @@ export default function QuoteDetail() {
             </CollapsibleCard>
 
             <CollapsibleCard title="Message Customer">
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  run(async () => {
-                    const res = await shopFetch(`/quotes/${id}/shop-messages`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ sender_type: 'shop', body: shopMessage }),
-                    })
-                    if (!res.ok) throw new Error(await res.text())
-                    setShopMessage('')
-                  }, 'Shop message sent.')
+              <div
+                aria-live="polite"
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                  maxHeight: 360,
+                  overflowY: 'auto',
+                  paddingRight: 4,
                 }}
               >
+                {data.messages.length ? data.messages.map((item: any) => {
+                  const isShop = item.sender_type === 'shop'
+                  return (
+                    <div
+                      key={item.id}
+                      style={{
+                        alignSelf: isShop ? 'flex-end' : 'flex-start',
+                        background: isShop ? 'rgba(0, 191, 255, 0.16)' : 'rgba(255, 255, 255, 0.08)',
+                        border: '1px solid rgba(255, 255, 255, 0.14)',
+                        borderRadius: 8,
+                        maxWidth: '85%',
+                        padding: '10px 12px',
+                      }}
+                    >
+                      <p style={{ margin: 0 }}>{item.body}</p>
+                      <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
+                        {isShop ? 'Shop' : 'Customer'} - {new Date(item.created_at).toLocaleString()}
+                      </p>
+                    </div>
+                  )
+                }) : (
+                  <p className="muted">No customer messages yet.</p>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+
+              <form onSubmit={sendShopMessage} style={{ marginTop: 16 }}>
                 <div className="field">
-                  <textarea rows={5} value={shopMessage} onChange={(e) => setShopMessage(e.target.value)} required />
+                  <label>Text Message</label>
+                  <textarea
+                    placeholder="Type a service-related message for this customer..."
+                    rows={4}
+                    value={shopMessage}
+                    onChange={(e) => setShopMessage(e.target.value)}
+                    required
+                  />
                 </div>
                 <button className="btn" type="submit">
-                  Send Message
+                  Text Customer
                 </button>
               </form>
             </CollapsibleCard>
