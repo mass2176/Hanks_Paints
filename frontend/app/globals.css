@@ -48,6 +48,22 @@ a {
   font-size: 14px;
 }
 
+.nav-admin-group {
+  display: flex;
+  gap: 18px;
+}
+
+.nav-sub-link {
+  color: #d8e4ef;
+  position: relative;
+}
+
+.nav-sub-link::before {
+  color: var(--blue);
+  content: '>';
+  margin-right: 6px;
+}
+
 .menu-button {
   display: none;
   width: 44px;
@@ -877,6 +893,16 @@ a {
     border-top: 1px solid var(--line);
     color: var(--text);
     font-weight: 800;
+  }
+
+  .nav-admin-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .nav-sub-link {
+    padding-left: 34px !important;
   }
 
   .row {

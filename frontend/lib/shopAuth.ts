@@ -9,6 +9,12 @@ export type ShopUser = {
 
 const tokenKey = 'hanks_paints_shop_token'
 const userKey = 'hanks_paints_shop_user'
+const sessionEvent = 'hanks-paints-shop-session'
+
+function notifyShopSessionChange() {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new Event(sessionEvent))
+}
 
 export function getShopToken() {
   if (typeof window === 'undefined') return ''
@@ -30,11 +36,13 @@ export function getStoredShopUser(): ShopUser | null {
 export function storeShopSession(token: string, user: ShopUser) {
   window.localStorage.setItem(tokenKey, token)
   window.localStorage.setItem(userKey, JSON.stringify(user))
+  notifyShopSessionChange()
 }
 
 export function clearShopSession() {
   window.localStorage.removeItem(tokenKey)
   window.localStorage.removeItem(userKey)
+  notifyShopSessionChange()
 }
 
 export async function shopFetch(path: string, init: RequestInit = {}) {
@@ -56,5 +64,6 @@ export async function loadCurrentShopUser() {
   }
   const user = await res.json()
   window.localStorage.setItem(userKey, JSON.stringify(user))
+  notifyShopSessionChange()
   return user as ShopUser
 }

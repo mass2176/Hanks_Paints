@@ -1,21 +1,38 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { getStoredShopUser } from '../lib/shopAuth'
 
 const navLinks = [
   { href: '/services', label: 'Services' },
   { href: '/areas', label: 'Service Areas' },
-  { href: '/workflow', label: 'Workflow' },
   { href: '/products', label: 'Products' },
   { href: '/gallery', label: 'Gallery' },
   { href: '/estimate', label: 'Start Estimate' },
   { href: '/status', label: 'Check Status' },
   { href: '/contact', label: 'Contact' },
-  { href: '/admin', label: 'Shop Login' },
 ]
 
 export default function SiteNav() {
   const [open, setOpen] = useState(false)
+  const [shopLoggedIn, setShopLoggedIn] = useState(false)
+
+  useEffect(() => {
+    function syncShopSession() {
+      setShopLoggedIn(Boolean(getStoredShopUser()))
+    }
+
+    syncShopSession()
+    window.addEventListener('storage', syncShopSession)
+    window.addEventListener('focus', syncShopSession)
+    window.addEventListener('hanks-paints-shop-session', syncShopSession)
+
+    return () => {
+      window.removeEventListener('storage', syncShopSession)
+      window.removeEventListener('focus', syncShopSession)
+      window.removeEventListener('hanks-paints-shop-session', syncShopSession)
+    }
+  }, [])
 
   return (
     <nav className="nav">
@@ -41,6 +58,23 @@ export default function SiteNav() {
             {link.label}
           </a>
         ))}
+        {shopLoggedIn ? (
+          <div className="nav-admin-group">
+            <a href="/admin" onClick={() => setOpen(false)}>
+              Admin Page
+            </a>
+            <a className="nav-sub-link" href="/admin/calendar" onClick={() => setOpen(false)}>
+              Shop Calendar
+            </a>
+            <a className="nav-sub-link" href="/admin/workflow" onClick={() => setOpen(false)}>
+              Workflow Map
+            </a>
+          </div>
+        ) : (
+          <a href="/admin" onClick={() => setOpen(false)}>
+            Shop Login
+          </a>
+        )}
       </div>
     </nav>
   )

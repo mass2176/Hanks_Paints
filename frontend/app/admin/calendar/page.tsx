@@ -167,9 +167,6 @@ export default function InspectionCalendar() {
               <a className="btn secondary" href="/admin">
                 Dashboard
               </a>
-              <a className="btn secondary" href="/admin/workflow">
-                Workflow Map
-              </a>
             </div>
           </section>
 

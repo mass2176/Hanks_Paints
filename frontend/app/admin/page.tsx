@@ -315,9 +315,6 @@ export default function Admin() {
             <p className="muted">
               Logged in as {user.full_name} ({user.role})
             </p>
-            <a className="btn secondary" href="/admin/workflow">
-              Workflow Map
-            </a>
             <button className="btn secondary" type="button" onClick={logout}>
               Log Out
             </button>
@@ -474,14 +471,6 @@ export default function Admin() {
 
           <div className="card">
             <h2>Inspection Calendar</h2>
-            <div className="btns" style={{ marginTop: 0, marginBottom: 18 }}>
-              <a className="btn secondary" href="/admin/calendar">
-                Open TV Calendar
-              </a>
-              <a className="btn secondary" href="/admin/workflow">
-                Workflow Map
-              </a>
-            </div>
             <div className="user-list">
               {appointments.length ? appointments.map((appointment) => (
                 <div className="user-row" key={appointment.id}>
