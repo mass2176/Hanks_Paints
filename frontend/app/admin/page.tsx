@@ -315,6 +315,9 @@ export default function Admin() {
             <p className="muted">
               Logged in as {user.full_name} ({user.role})
             </p>
+            <a className="btn secondary" href="/admin/workflow">
+              Workflow Map
+            </a>
             <button className="btn secondary" type="button" onClick={logout}>
               Log Out
             </button>
@@ -474,6 +477,9 @@ export default function Admin() {
             <div className="btns" style={{ marginTop: 0, marginBottom: 18 }}>
               <a className="btn secondary" href="/admin/calendar">
                 Open TV Calendar
+              </a>
+              <a className="btn secondary" href="/admin/workflow">
+                Workflow Map
               </a>
             </div>
             <div className="user-list">

@@ -10,6 +10,7 @@ Primary public pages:
 
 - Home: https://hanks-paints.com/
 - Services: https://hanks-paints.com/services
+- Website workflow map: https://hanks-paints.com/workflow
 - Auto body repair: https://hanks-paints.com/services/auto-body-repair
 - Collision repair: https://hanks-paints.com/services/collision-repair
 - Rust repair: https://hanks-paints.com/services/rust-repair
@@ -63,6 +64,10 @@ Local service areas:
 Customer workflow:
 
 Customers can request an estimate by submitting contact information, vehicle details, service type, payment type, damage or project notes, and vehicle media through https://hanks-paints.com/estimate. Hanks Paints reviews the request, communicates through the customer portal, schedules on-site inspections when needed, sends estimates and invoices, and tracks approvals.
+
+Workflow map:
+
+The Hanks Paints workflow map at https://hanks-paints.com/workflow explains the customer, shop/admin, and automated system handoffs from estimate request through review, inspection scheduling, final estimate approval, repair job conversion, invoicing, and manual payment tracking.
 
 Contact:
 

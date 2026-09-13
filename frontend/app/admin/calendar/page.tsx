@@ -163,9 +163,14 @@ export default function InspectionCalendar() {
               <span>{notifications.length}</span>
               <small>Action Needed</small>
             </div>
-            <a className="btn secondary" href="/admin">
-              Dashboard
-            </a>
+            <div className="btns calendar-actions">
+              <a className="btn secondary" href="/admin">
+                Dashboard
+              </a>
+              <a className="btn secondary" href="/admin/workflow">
+                Workflow Map
+              </a>
+            </div>
           </section>
 
           <section className="calendar-grid">
