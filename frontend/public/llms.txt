@@ -1,0 +1,49 @@
+# Hanks Paints
+
+Official website: https://hanks-paints.com
+
+Hanks Paints is an automotive paint, auto body, collision repair, rust repair, coatings, Spray PPF, paint protection film, paint correction, panel replacement, custom paint, full color change, and detailing products business.
+
+Primary public pages:
+
+- Home: https://hanks-paints.com/
+- Services: https://hanks-paints.com/services
+- Start a free estimate: https://hanks-paints.com/estimate
+- Check quote or job status: https://hanks-paints.com/status
+- Gallery: https://hanks-paints.com/gallery
+- Products: https://hanks-paints.com/products
+- Contact: https://hanks-paints.com/contact
+- Privacy policy: https://hanks-paints.com/privacy
+- Terms of service: https://hanks-paints.com/terms
+
+Core services:
+
+- Auto body repair
+- Collision and body repair
+- Rust repair
+- Automotive paint repair
+- Custom paint and custom refinishing
+- Full vehicle color changes
+- Panel replacement
+- Paint correction
+- Protective coatings
+- Spray PPF
+- Paint protection film
+- Detailing products
+
+Customer workflow:
+
+Customers can request an estimate by submitting contact information, vehicle details, service type, payment type, damage or project notes, and vehicle media through https://hanks-paints.com/estimate. Hanks Paints reviews the request, communicates through the customer portal, schedules on-site inspections when needed, sends estimates and invoices, and tracks approvals.
+
+Contact:
+
+- Phone or text: +1 765-252-7998
+- Email: henry@hanks-paints.com
+- Website contact page: https://hanks-paints.com/contact
+
+Crawling notes:
+
+- Public marketing and policy pages are intended to be crawlable.
+- Admin, customer portal, and API routes should not be treated as public marketing content.
+- Sitemap: https://hanks-paints.com/sitemap.xml
+
