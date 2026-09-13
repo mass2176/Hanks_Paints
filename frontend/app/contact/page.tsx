@@ -1,3 +1,5 @@
+import { localServiceAreas } from '../../lib/localSeo'
+
 export default function Page() {
   return (
     <main className="section">
@@ -25,6 +27,19 @@ export default function Page() {
           <p>
             <b>8:00 AM - 5:00 PM</b>
           </p>
+        </div>
+
+        <div className="card">
+          <h3>Service Area</h3>
+          <p className="muted">
+            Hanks Paints serves Kokomo, Howard County, and surrounding Central Indiana communities.
+          </p>
+          <p className="muted">
+            {localServiceAreas.slice(0, 7).map((area) => area.city).join(', ')}
+          </p>
+          <a className="btn secondary" href="/areas">
+            View Service Areas
+          </a>
         </div>
 
         <div className="card">

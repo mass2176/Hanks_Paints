@@ -10,6 +10,33 @@
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
+  <url><loc>https://hanks-paints.com/services/auto-body-repair</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://hanks-paints.com/services/collision-repair</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://hanks-paints.com/services/rust-repair</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://hanks-paints.com/services/paint-repair</loc><changefreq>weekly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://hanks-paints.com/services/custom-paint</loc><changefreq>weekly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://hanks-paints.com/services/full-color-change</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://hanks-paints.com/services/paint-correction</loc><changefreq>weekly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://hanks-paints.com/services/spray-ppf-paint-protection-film</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://hanks-paints.com/services/panel-replacement</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url>
+    <loc>https://hanks-paints.com/areas</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url><loc>https://hanks-paints.com/areas/kokomo-in</loc><changefreq>weekly</changefreq><priority>0.95</priority></url>
+  <url><loc>https://hanks-paints.com/areas/greentown-in</loc><changefreq>monthly</changefreq><priority>0.75</priority></url>
+  <url><loc>https://hanks-paints.com/areas/russiaville-in</loc><changefreq>monthly</changefreq><priority>0.75</priority></url>
+  <url><loc>https://hanks-paints.com/areas/sharpsville-in</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://hanks-paints.com/areas/tipton-in</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://hanks-paints.com/areas/peru-in</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://hanks-paints.com/areas/logansport-in</loc><changefreq>monthly</changefreq><priority>0.65</priority></url>
+  <url><loc>https://hanks-paints.com/areas/marion-in</loc><changefreq>monthly</changefreq><priority>0.65</priority></url>
+  <url><loc>https://hanks-paints.com/areas/noblesville-in</loc><changefreq>monthly</changefreq><priority>0.65</priority></url>
+  <url><loc>https://hanks-paints.com/areas/westfield-in</loc><changefreq>monthly</changefreq><priority>0.65</priority></url>
+  <url><loc>https://hanks-paints.com/areas/carmel-in</loc><changefreq>monthly</changefreq><priority>0.65</priority></url>
+  <url><loc>https://hanks-paints.com/areas/fishers-in</loc><changefreq>monthly</changefreq><priority>0.65</priority></url>
+  <url><loc>https://hanks-paints.com/areas/lafayette-in</loc><changefreq>monthly</changefreq><priority>0.65</priority></url>
   <url>
     <loc>https://hanks-paints.com/estimate</loc>
     <changefreq>weekly</changefreq>
@@ -41,4 +68,3 @@
     <priority>0.3</priority>
   </url>
 </urlset>
-

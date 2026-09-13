@@ -4,15 +4,28 @@ Official website: https://hanks-paints.com
 
 Hanks Paints is an automotive paint, auto body, collision repair, rust repair, coatings, Spray PPF, paint protection film, paint correction, panel replacement, custom paint, full color change, and detailing products business.
 
+Primary service market: Kokomo, Howard County, and surrounding Central Indiana communities.
+
 Primary public pages:
 
 - Home: https://hanks-paints.com/
 - Services: https://hanks-paints.com/services
+- Auto body repair: https://hanks-paints.com/services/auto-body-repair
+- Collision repair: https://hanks-paints.com/services/collision-repair
+- Rust repair: https://hanks-paints.com/services/rust-repair
+- Automotive paint repair: https://hanks-paints.com/services/paint-repair
+- Custom paint: https://hanks-paints.com/services/custom-paint
+- Full color changes: https://hanks-paints.com/services/full-color-change
+- Paint correction: https://hanks-paints.com/services/paint-correction
+- Spray PPF and paint protection film: https://hanks-paints.com/services/spray-ppf-paint-protection-film
+- Panel replacement: https://hanks-paints.com/services/panel-replacement
 - Start a free estimate: https://hanks-paints.com/estimate
 - Check quote or job status: https://hanks-paints.com/status
 - Gallery: https://hanks-paints.com/gallery
 - Products: https://hanks-paints.com/products
 - Contact: https://hanks-paints.com/contact
+- Service areas: https://hanks-paints.com/areas
+- Kokomo auto body, paint, rust repair, and Spray PPF: https://hanks-paints.com/areas/kokomo-in
 - Privacy policy: https://hanks-paints.com/privacy
 - Terms of service: https://hanks-paints.com/terms
 
@@ -31,6 +44,22 @@ Core services:
 - Paint protection film
 - Detailing products
 
+Local service areas:
+
+- Kokomo, Indiana
+- Greentown, Indiana
+- Russiaville, Indiana
+- Sharpsville, Indiana
+- Tipton, Indiana
+- Peru, Indiana
+- Logansport, Indiana
+- Marion, Indiana
+- Noblesville, Indiana
+- Westfield, Indiana
+- Carmel, Indiana
+- Fishers, Indiana
+- Lafayette, Indiana
+
 Customer workflow:
 
 Customers can request an estimate by submitting contact information, vehicle details, service type, payment type, damage or project notes, and vehicle media through https://hanks-paints.com/estimate. Hanks Paints reviews the request, communicates through the customer portal, schedules on-site inspections when needed, sends estimates and invoices, and tracks approvals.
@@ -46,4 +75,3 @@ Crawling notes:
 - Public marketing and policy pages are intended to be crawlable.
 - Admin, customer portal, and API routes should not be treated as public marketing content.
 - Sitemap: https://hanks-paints.com/sitemap.xml
-

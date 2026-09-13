@@ -1,3 +1,5 @@
+import { localServiceAreas, servicePages } from '../../lib/localSeo'
+
 const services = [
   {
     title: 'Rust Repair',
@@ -30,22 +32,48 @@ export default function Page() {
     <main className="section">
       <h1>Services</h1>
       <p className="muted">
-        Hanks Paints reviews each vehicle through the estimate workflow so the repair scope, photos,
-        inspection status, approvals, supplements, invoice, and payments stay tied to the same
-        record.
+        Hanks Paints serves Kokomo, Howard County, and Central Indiana. Each vehicle is reviewed
+        through the estimate workflow so the repair scope, photos, inspection status, approvals,
+        supplements, invoice, and payments stay tied to the same record.
       </p>
 
       <div className="grid">
-        {services.map((service) => (
+        {services.map((service) => {
+          const detail = servicePages.find((item) => item.title === service.title || service.title.includes(item.title))
+          return (
           <div className="card" key={service.title}>
             <h3>{service.title}</h3>
             <p className="muted">{service.body}</p>
-            <a className="btn secondary" href="/estimate">
-              Start Estimate
+            <a className="btn secondary" href={detail ? `/services/${detail.slug}` : '/estimate'}>
+              View Service
             </a>
           </div>
-        ))}
+        )})}
       </div>
+
+      <section style={{ marginTop: 24 }}>
+        <h2>Detailed Services</h2>
+        <div className="grid">
+          {servicePages.map((service) => (
+            <a className="card" href={`/services/${service.slug}`} key={service.slug}>
+              <h3>{service.title}</h3>
+              <p className="muted">{service.description}</p>
+            </a>
+          ))}
+        </div>
+      </section>
+
+      <section style={{ marginTop: 24 }}>
+        <h2>Local Service Areas</h2>
+        <div className="grid">
+          {localServiceAreas.slice(0, 8).map((area) => (
+            <a className="card" href={`/areas/${area.slug}`} key={area.slug}>
+              <h3>{area.city}, IN</h3>
+              <p className="muted">{area.summary}</p>
+            </a>
+          ))}
+        </div>
+      </section>
     </main>
   )
 }

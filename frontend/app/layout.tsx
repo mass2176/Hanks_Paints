@@ -1,46 +1,27 @@
 import './globals.css'
 import type { Metadata } from 'next'
 import SiteNav from '../components/SiteNav'
+import { businessName, email, phone, serviceAreaNames, serviceNames, siteUrl } from '../lib/localSeo'
 
-const siteUrl = 'https://hanks-paints.com'
 const description =
-  'Hanks Paints provides auto body repair, collision repair, rust repair, automotive paint, custom refinishing, coatings, Spray PPF, paint protection film, paint correction, full color changes, panel replacement, and detailing products.'
-const phone = '+17652527998'
-const email = 'henry@hanks-paints.com'
-
-const serviceNames = [
-  'Auto body repair',
-  'Collision repair',
-  'Rust repair',
-  'Automotive paint repair',
-  'Custom paint',
-  'Full color changes',
-  'Panel replacement',
-  'Paint correction',
-  'Protective coatings',
-  'Spray PPF',
-  'Paint protection film',
-  'Detailing products',
-]
+  'Hanks Paints serves Kokomo, Howard County, and Central Indiana with auto body repair, collision repair, rust repair, automotive paint, custom refinishing, coatings, Spray PPF, paint protection film, paint correction, full color changes, panel replacement, and detailing products.'
 
 const structuredData = [
   {
     '@context': 'https://schema.org',
     '@type': ['AutoBodyShop', 'AutomotiveBusiness', 'LocalBusiness'],
     '@id': `${siteUrl}/#business`,
-    name: 'Hanks Paints',
+    name: businessName,
     url: siteUrl,
     image: `${siteUrl}/og-image.png`,
     logo: `${siteUrl}/icon.png`,
     telephone: phone,
     email,
     priceRange: '$$',
-    areaServed: [
-      {
-        '@type': 'State',
-        name: 'Indiana',
-      },
-    ],
+    areaServed: serviceAreaNames.map((name) => ({
+      '@type': 'City',
+      name,
+    })),
     openingHoursSpecification: [
       {
         '@type': 'OpeningHoursSpecification',
@@ -78,7 +59,7 @@ const structuredData = [
     '@context': 'https://schema.org',
     '@type': 'WebSite',
     '@id': `${siteUrl}/#website`,
-    name: 'Hanks Paints',
+    name: businessName,
     url: siteUrl,
     publisher: {
       '@id': `${siteUrl}/#business`,
