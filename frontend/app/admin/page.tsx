@@ -39,12 +39,34 @@ const statusHelp: Record<string, string> = {
 
 const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
+type SearchResult = {
+  quotes?: any[]
+  customers?: any[]
+  vehicles?: any[]
+}
+
 function formatTime(value: string) {
   const [hourRaw, minute = '00'] = value.split(':')
   const hour = Number(hourRaw)
   const suffix = hour >= 12 ? 'PM' : 'AM'
   const displayHour = hour % 12 || 12
   return `${displayHour}:${minute} ${suffix}`
+}
+
+function formatPhone(value?: string | null) {
+  const digits = (value || '').replace(/\D/g, '')
+  const normalized = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits
+  if (normalized.length !== 10) return value || ''
+  return `(${normalized.slice(0, 3)})-${normalized.slice(3, 6)}-${normalized.slice(6)}`
+}
+
+function formatSearchDate(value?: string | null) {
+  if (!value) return ''
+  return new Date(value).toLocaleDateString([], {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
 }
 
 function StatusHelp({ status }: { status: string }) {
@@ -66,7 +88,7 @@ export default function Admin() {
   const [user, setUser] = useState<ShopUser | null>(null)
   const [rows, setRows] = useState<any[]>([])
   const [q, setQ] = useState('')
-  const [search, setSearch] = useState<any>(null)
+  const [search, setSearch] = useState<SearchResult | null>(null)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [email, setEmail] = useState('')
@@ -342,7 +364,89 @@ export default function Admin() {
           {search && (
             <div className="card">
               <h2>Search Results</h2>
-              <pre>{JSON.stringify(search, null, 2)}</pre>
+              {!(search.quotes?.length || search.customers?.length || search.vehicles?.length) && (
+                <p className="muted">No customers, vehicles, quotes, or jobs matched that search.</p>
+              )}
+
+              {!!search.quotes?.length && (
+                <section className="search-section">
+                  <h3>Quotes And Jobs</h3>
+                  <div className="search-results-list">
+                    {search.quotes.map((quote) => (
+                      <div className="search-result-row" key={`quote-${quote.id}`}>
+                        <div>
+                          <b>Quote #{quote.id} - {quote.customer_name}</b>
+                          <p>{quote.vehicle || 'Vehicle not listed'} - {quote.service_type}</p>
+                          <p className="muted">
+                            {formatPhone(quote.phone)} {quote.email ? `/ ${quote.email}` : ''}
+                          </p>
+                          <p className="muted">
+                            {quote.status} - {quote.payment_type}
+                            {quote.created_at ? ` - Created ${formatSearchDate(quote.created_at)}` : ''}
+                          </p>
+                          {quote.damage_description && (
+                            <p className="muted search-description">{quote.damage_description}</p>
+                          )}
+                        </div>
+                        <a className="btn secondary" href={`/admin/quotes/${quote.id}`}>
+                          Open
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {!!search.customers?.length && (
+                <section className="search-section">
+                  <h3>Customers</h3>
+                  <div className="search-results-list">
+                    {search.customers.map((customer) => (
+                      <div className="search-result-row" key={`customer-${customer.id}`}>
+                        <div>
+                          <b>{customer.name}</b>
+                          <p className="muted">
+                            {formatPhone(customer.phone)} {customer.email ? `/ ${customer.email}` : ''}
+                          </p>
+                        </div>
+                        {customer.quote_id ? (
+                          <a className="btn secondary" href={`/admin/quotes/${customer.quote_id}`}>
+                            Open Latest Quote
+                          </a>
+                        ) : (
+                          <span className="muted">No quotes</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {!!search.vehicles?.length && (
+                <section className="search-section">
+                  <h3>Vehicles</h3>
+                  <div className="search-results-list">
+                    {search.vehicles.map((vehicle) => (
+                      <div className="search-result-row" key={`vehicle-${vehicle.id}`}>
+                        <div>
+                          <b>{vehicle.vehicle}</b>
+                          <p className="muted">
+                            {vehicle.vin ? `VIN ${vehicle.vin}` : 'VIN not listed'}
+                            {vehicle.plate ? ` / Plate ${vehicle.plate}` : ''}
+                          </p>
+                        </div>
+                        {vehicle.quote_id ? (
+                          <a className="btn secondary" href={`/admin/quotes/${vehicle.quote_id}`}>
+                            Open Latest Quote
+                          </a>
+                        ) : (
+                          <span className="muted">No quotes</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
             </div>
           )}
 

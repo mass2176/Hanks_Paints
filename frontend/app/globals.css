@@ -342,6 +342,41 @@ a {
   margin-top: -8px;
 }
 
+.search-section {
+  border-top: 1px solid var(--line);
+  margin-top: 18px;
+  padding-top: 16px;
+}
+
+.search-section h3 {
+  margin: 0 0 12px;
+}
+
+.search-results-list {
+  display: grid;
+  gap: 12px;
+}
+
+.search-result-row {
+  align-items: flex-start;
+  background: rgba(7, 11, 16, .38);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  padding: 14px;
+}
+
+.search-result-row p {
+  line-height: 1.35;
+  margin: 6px 0 0;
+}
+
+.search-description {
+  max-width: 720px;
+}
+
 .quote-status {
   align-items: center;
   display: flex;
@@ -936,6 +971,10 @@ a {
 
   .workflow-stage-heading h3 {
     font-size: 22px;
+  }
+
+  .search-result-row {
+    flex-direction: column;
   }
 
   .file-row {

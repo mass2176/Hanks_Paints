@@ -4,7 +4,7 @@ from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
-from sqlalchemy import or_
+from sqlalchemy import String, cast, or_
 from sqlalchemy.orm import Session
 import stripe
 from app.core.config import settings
@@ -1650,9 +1650,104 @@ def dashboard(db: Session = Depends(get_db), user: ShopUser = Depends(get_curren
 
 @router.get("/search")
 def search(q: str, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
-    customers = db.query(Customer).filter(or_(Customer.full_name.ilike(f"%{q}%"), Customer.phone.ilike(f"%{q}%"), Customer.email.ilike(f"%{q}%"))).limit(20).all()
-    vehicles = db.query(Vehicle).filter(or_(Vehicle.vin.ilike(f"%{q}%"), Vehicle.make.ilike(f"%{q}%"), Vehicle.model.ilike(f"%{q}%"), Vehicle.plate.ilike(f"%{q}%"))).limit(20).all()
-    return {"customers": [{"id": c.id, "name": c.full_name, "phone": c.phone, "email": c.email} for c in customers], "vehicles": [{"id": v.id, "vehicle": f"{v.year} {v.make} {v.model}", "vin": v.vin, "plate": v.plate} for v in vehicles]}
+    term = q.strip()
+    if len(term) < 2:
+        return {"quotes": [], "customers": [], "vehicles": []}
+
+    pattern = f"%{term}%"
+    quote_filters = [
+        Customer.full_name.ilike(pattern),
+        Customer.phone.ilike(pattern),
+        Customer.email.ilike(pattern),
+        Vehicle.vin.ilike(pattern),
+        Vehicle.make.ilike(pattern),
+        Vehicle.model.ilike(pattern),
+        Vehicle.plate.ilike(pattern),
+        QuoteRequest.service_type.ilike(pattern),
+        QuoteRequest.payment_type.ilike(pattern),
+        QuoteRequest.insurance_company.ilike(pattern),
+        QuoteRequest.claim_number.ilike(pattern),
+        QuoteRequest.damage_description.ilike(pattern),
+        cast(QuoteRequest.status, String).ilike(pattern),
+    ]
+    if term.isdigit():
+        quote_filters.append(QuoteRequest.id == int(term))
+
+    quote_rows = (
+        db.query(QuoteRequest, Customer, Vehicle, Job)
+        .join(Customer, QuoteRequest.customer_id == Customer.id)
+        .join(Vehicle, QuoteRequest.vehicle_id == Vehicle.id)
+        .outerjoin(Job, Job.quote_id == QuoteRequest.id)
+        .filter(or_(*quote_filters))
+        .order_by(QuoteRequest.created_at.desc())
+        .limit(30)
+        .all()
+    )
+
+    customers = (
+        db.query(Customer)
+        .filter(or_(Customer.full_name.ilike(pattern), Customer.phone.ilike(pattern), Customer.email.ilike(pattern)))
+        .order_by(Customer.created_at.desc())
+        .limit(20)
+        .all()
+    )
+    vehicles = (
+        db.query(Vehicle)
+        .filter(or_(Vehicle.vin.ilike(pattern), Vehicle.make.ilike(pattern), Vehicle.model.ilike(pattern), Vehicle.plate.ilike(pattern)))
+        .limit(20)
+        .all()
+    )
+
+    return {
+        "quotes": [
+            {
+                "id": quote.id,
+                "customer_name": customer.full_name,
+                "phone": customer.phone,
+                "email": customer.email,
+                "vehicle": f"{vehicle.year} {vehicle.make} {vehicle.model}".strip(),
+                "vin": vehicle.vin,
+                "plate": vehicle.plate,
+                "service_type": quote.service_type,
+                "payment_type": quote.payment_type,
+                "status": quote.status.value,
+                "damage_description": quote.damage_description,
+                "job_id": job.id if job else None,
+                "created_at": quote.created_at,
+            }
+            for quote, customer, vehicle, job in quote_rows
+        ],
+        "customers": [
+            {
+                "id": customer.id,
+                "name": customer.full_name,
+                "phone": customer.phone,
+                "email": customer.email,
+                "quote_id": (
+                    db.query(QuoteRequest.id)
+                    .filter(QuoteRequest.customer_id == customer.id)
+                    .order_by(QuoteRequest.created_at.desc())
+                    .scalar()
+                ),
+            }
+            for customer in customers
+        ],
+        "vehicles": [
+            {
+                "id": vehicle.id,
+                "vehicle": f"{vehicle.year} {vehicle.make} {vehicle.model}".strip(),
+                "vin": vehicle.vin,
+                "plate": vehicle.plate,
+                "quote_id": (
+                    db.query(QuoteRequest.id)
+                    .filter(QuoteRequest.vehicle_id == vehicle.id)
+                    .order_by(QuoteRequest.created_at.desc())
+                    .scalar()
+                ),
+            }
+            for vehicle in vehicles
+        ],
+    }
 
 @router.get("/quotes/{quote_id}/timeline")
 def timeline(quote_id: int, db: Session = Depends(get_db), user: ShopUser = Depends(get_current_shop_user)):
